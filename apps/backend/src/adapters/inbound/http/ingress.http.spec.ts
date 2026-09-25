@@ -109,7 +109,7 @@ describe("POST /inbound/emails over HTTP", () => {
     expect(nonBearer.status).toBe(401);
   });
 
-  it("stores a new email: 201 with ids and processing pending", async () => {
+  it("stores a new email: 201 with ids and the post-commit processing status", async () => {
     const response = await request(app.getHttpServer())
       .post("/inbound/emails")
       .set("Authorization", `Bearer ${INGRESS_KEY}`)
@@ -118,7 +118,34 @@ describe("POST /inbound/emails over HTTP", () => {
     expect(response.body.messageId).toEqual(expect.any(String));
     expect(response.body.conversationId).toEqual(expect.any(String));
     expect(response.body.duplicate).toBe(false);
-    expect(response.body.processing).toBe("pending");
+    // "how much" is a quote fixture: high-confidence quote is ready.
+    expect(response.body.processing).toBe("ready");
+  });
+
+  it("still returns 201 with processing failed for a thrown classifier", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({ sourceMessageId: "src-fail", subject: "[bos:fail] help" }),
+      );
+    expect(response.status).toBe(201);
+    expect(response.body.processing).toBe("failed");
+  });
+
+  it("returns 201 with needs_human for a low-confidence message", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({
+          sourceMessageId: "src-low",
+          subject: "[bos:low] how much",
+          text: "[bos:low] how much",
+        }),
+      );
+    expect(response.status).toBe(201);
+    expect(response.body.processing).toBe("needs_human");
   });
 
   it("replays the same source key: 200, original ids, duplicate true", async () => {
@@ -137,7 +164,8 @@ describe("POST /inbound/emails over HTTP", () => {
       messageId: first.body.messageId,
       conversationId: first.body.conversationId,
       duplicate: true,
-      processing: "pending",
+      // The replay reports the stored status; it does not restart processing.
+      processing: first.body.processing,
     });
   });
 
@@ -191,7 +219,7 @@ describe("owner reads over HTTP", () => {
     expect(thread.status).toBe(401);
   });
 
-  it("lists the fixtures newest first and serves the thread", async () => {
+  it("lists the fixtures newest first and serves the thread with processing", async () => {
     await request(app.getHttpServer())
       .post("/inbound/emails")
       .set("Authorization", `Bearer ${INGRESS_KEY}`)
@@ -220,12 +248,12 @@ describe("owner reads over HTTP", () => {
     expect(inbox.body.items.length).toBeGreaterThanOrEqual(2);
     const [newest, older] = inbox.body.items;
     expect(newest.from).toEqual({ address: "jo@example.test", name: "Jo" });
-    expect(newest.processing).toBe("pending");
+    expect(newest.processing).toBe("ready");
+    expect(newest.lane).toBe("quote");
     expect(newest.urgent).toBe(false);
     expect(newest.automationPaused).toBe(false);
     expect(newest.preview).toBe("Hi, how much for an oven clean?");
     expect(newest.subject).toBe("Oven clean");
-    expect(newest.lane).toBeUndefined();
     expect(older.from.address).toBe("sam@example.test");
     expect(newest.latestAt > older.latestAt).toBe(true);
 
@@ -247,8 +275,117 @@ describe("owner reads over HTTP", () => {
     expect(message.at).toBe("2025-06-02T00:00:00.000Z");
     // HTML is stored but never returned to the UI.
     expect(message.html).toBeUndefined();
-    expect(thread.body.processing).toBeUndefined();
+    // Processing comes from the latest revision (lane, status, summary).
+    expect(thread.body.processing).toEqual({
+      status: "ready",
+      lane: "quote",
+      summary: "Quote request",
+    });
     expect(thread.body.draft).toBeUndefined();
+  });
+
+  it("filters the inbox: needs_human, complaints, and 422 on an unknown filter", async () => {
+    // A complaint fixture ("refund") is urgent; a plain quote is not.
+    await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({
+          sourceMessageId: "src-complaint",
+          subject: "Terrible clean",
+          text: "I want a refund, the oven was damaged",
+        }),
+      );
+    const cookie = await loginCookie();
+
+    const all = await request(app.getHttpServer())
+      .get("/inbox?filter=all")
+      .set("Cookie", cookie);
+    expect(all.status).toBe(200);
+    const complaintItem = all.body.items.find(
+      (item: { lane?: string }) => item.lane === "complaint",
+    );
+    expect(complaintItem).toMatchObject({
+      processing: "needs_human",
+      urgent: true,
+    });
+
+    const needsHuman = await request(app.getHttpServer())
+      .get("/inbox?filter=needs_human")
+      .set("Cookie", cookie);
+    expect(needsHuman.status).toBe(200);
+    expect(
+      needsHuman.body.items.every(
+        (item: { processing: string }) => item.processing === "needs_human",
+      ),
+    ).toBe(true);
+    expect(
+      needsHuman.body.items.some(
+        (item: { lane?: string }) => item.lane === "complaint",
+      ),
+    ).toBe(true);
+
+    const complaints = await request(app.getHttpServer())
+      .get("/inbox?filter=complaints")
+      .set("Cookie", cookie);
+    expect(complaints.status).toBe(200);
+    expect(complaints.body.items).toHaveLength(1);
+    expect(complaints.body.items[0]).toMatchObject({
+      lane: "complaint",
+      urgent: true,
+      processing: "needs_human",
+    });
+
+    const invalid = await request(app.getHttpServer())
+      .get("/inbox?filter=archived")
+      .set("Cookie", cookie);
+    expect(invalid.status).toBe(422);
+    expect(invalid.body.error.code).toBe("validation");
+  });
+
+  it("retries processing with a session and rejects anonymous calls", async () => {
+    const created = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({ sourceMessageId: "src-retry", subject: "[bos:fail] no" }),
+      );
+    expect(created.body.processing).toBe("failed");
+
+    const anonymous = await request(app.getHttpServer()).post(
+      `/messages/${created.body.messageId}/retry-processing`,
+    );
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.body.error.code).toBe("unauthorized");
+
+    const cookie = await loginCookie();
+    const retry = await request(app.getHttpServer())
+      .post(`/messages/${created.body.messageId}/retry-processing`)
+      .set("Cookie", cookie);
+    // The same subject throws again in the fake, so the retry stays failed.
+    expect(retry.status).toBe(201);
+    expect(retry.body).toMatchObject({ status: "failed" });
+
+    // Retrying a processed message appends a new revision (quote lane now).
+    const created2 = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(fixture({ sourceMessageId: "src-retry-2" }));
+    const retry2 = await request(app.getHttpServer())
+      .post(`/messages/${created2.body.messageId}/retry-processing`)
+      .set("Cookie", cookie);
+    expect(retry2.status).toBe(201);
+    expect(retry2.body).toMatchObject({ status: "ready", lane: "quote" });
+    expect(retry2.body.revisionId).toEqual(expect.any(String));
+  });
+
+  it("returns 404 retrying an unknown message", async () => {
+    const cookie = await loginCookie();
+    const response = await request(app.getHttpServer())
+      .post("/messages/ulid-nope/retry-processing")
+      .set("Cookie", cookie);
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("not_found");
   });
 
   it("returns 404 for an unknown conversation id", async () => {

@@ -4,19 +4,23 @@ import {
   Inject,
   NotFoundException,
   Param,
+  Query,
   UseGuards,
 } from "@nestjs/common";
+import type { InboxFilter } from "../../../core/domain/messaging";
 import { GET_THREAD, type GetThread } from "../../../core/use-cases/get-thread";
 import { LIST_INBOX, type ListInbox } from "../../../core/use-cases/list-inbox";
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
+import { validationError } from "./http-error";
 import { SessionGuard } from "./session.guard";
 
 /**
  * Owner reads: `GET /inbox` lists conversations newest activity first;
  * `GET /threads/:conversationId` returns one conversation with its plain
  * text messages (HTML is stored but never returned). Both require the
- * session cookie.
+ * session cookie. An unknown `filter` is 422, filtering happens in the use
+ * case — never here.
  */
 @Controller()
 export class InboxController {
@@ -36,8 +40,13 @@ export class InboxController {
 
   @Get("inbox")
   @UseGuards(SessionGuard)
-  getInbox() {
-    return this.listInbox.run(this.config.organization.id);
+  getInbox(@Query("filter") filter?: string) {
+    if (filter !== undefined && !isInboxFilter(filter)) {
+      throw validationError(
+        `Unknown filter "${filter}". Use all, needs_human, or complaints.`,
+      );
+    }
+    return this.listInbox.run(this.config.organization.id, filter ?? "all");
   }
 
   @Get("threads/:conversationId")
@@ -54,4 +63,14 @@ export class InboxController {
     }
     return thread;
   }
+}
+
+const INBOX_FILTERS: readonly InboxFilter[] = [
+  "all",
+  "needs_human",
+  "complaints",
+];
+
+function isInboxFilter(value: string): value is InboxFilter {
+  return (INBOX_FILTERS as readonly string[]).includes(value);
 }

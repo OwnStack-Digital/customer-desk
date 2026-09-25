@@ -1,5 +1,9 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
+import {
+  CLASSIFIER_PORT,
+  type ClassifierPort,
+} from "../../../core/ports/classifier";
 import { CLOCK, type Clock } from "../../../core/ports/clock";
 import {
   CONVERSATION_REPOSITORY,
@@ -9,6 +13,10 @@ import {
   ID_GENERATOR,
   type IdGenerator,
 } from "../../../core/ports/id-generator";
+import {
+  KNOWLEDGE_BASE_REPOSITORY,
+  type KnowledgeBaseRepository,
+} from "../../../core/ports/knowledge-base-repository";
 import {
   MESSAGE_REPOSITORY,
   type MessageRepository,
@@ -25,6 +33,10 @@ import {
   PASSWORD_HASHER,
   type PasswordHasher,
 } from "../../../core/ports/password-hasher";
+import {
+  PROCESSING_REVISION_REPOSITORY,
+  type ProcessingRevisionRepository,
+} from "../../../core/ports/processing-revision-repository";
 import {
   SESSION_REPOSITORY,
   type SessionRepository,
@@ -47,15 +59,24 @@ import {
   type LogoutDeps,
 } from "../../../core/use-cases/logout";
 import {
+  PROCESS_INBOUND_MESSAGE,
+  ProcessInboundMessage,
+} from "../../../core/use-cases/process-inbound-message";
+import {
   RECEIVE_INBOUND_EMAIL,
   ReceiveInboundEmail,
 } from "../../../core/use-cases/receive-inbound-email";
+import {
+  RETRY_MESSAGE_PROCESSING,
+  RetryMessageProcessing,
+} from "../../../core/use-cases/retry-message-processing";
 import {
   SEED_OWNER,
   SeedOwner,
   type SeedOwnerDeps,
 } from "../../../core/use-cases/seed-owner";
 import { OwnerSeeder } from "../../../infrastructure/composition/owner-seeder";
+import { AiModule } from "../../outbound/ai/ai.module";
 import { ConfigModule } from "../../outbound/config-files/config.module";
 import {
   PERSISTENCE_CLIENT,
@@ -65,6 +86,7 @@ import { DrizzleConversationRepository } from "../../outbound/persistence/conver
 import { DrizzleMessageRepository } from "../../outbound/persistence/message-repository";
 import { DrizzleOperatorCredentialRepository } from "../../outbound/persistence/operator-credential-repository";
 import { PersistenceModule } from "../../outbound/persistence/persistence.module";
+import { DrizzleProcessingRevisionRepository } from "../../outbound/persistence/processing-revision-repository";
 import { DrizzleSessionRepository } from "../../outbound/persistence/session-repository";
 import { Argon2PasswordHasher } from "../../outbound/security/argon2-password-hasher";
 import {
@@ -80,18 +102,20 @@ import { HealthController } from "./health.controller";
 import { InboxController } from "./inbox.controller";
 import { IngressController } from "./ingress.controller";
 import { IngressGuard } from "./ingress.guard";
+import { MessagesController } from "./messages.controller";
 import { SessionGuard } from "./session.guard";
 
 /** 7-day absolute session lifetime (docs/PLAN.md frozen choices). */
 const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Module({
-  imports: [ConfigModule, PersistenceModule],
+  imports: [ConfigModule, PersistenceModule, AiModule],
   controllers: [
     HealthController,
     AuthController,
     InboxController,
     IngressController,
+    MessagesController,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ErrorBodyFilter },
@@ -121,6 +145,12 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       provide: MESSAGE_REPOSITORY,
       useFactory: (client: PersistenceClient) =>
         new DrizzleMessageRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: PROCESSING_REVISION_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleProcessingRevisionRepository(client),
       inject: [PERSISTENCE_CLIENT],
     },
     {
@@ -194,25 +224,72 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       ],
     },
     {
+      provide: PROCESS_INBOUND_MESSAGE,
+      useFactory: (
+        messages: MessageRepository,
+        revisions: ProcessingRevisionRepository,
+        classifier: ClassifierPort,
+        knowledgeBase: KnowledgeBaseRepository,
+        ids: IdGenerator,
+        clock: Clock,
+      ): ProcessInboundMessage =>
+        new ProcessInboundMessage({
+          messages,
+          revisions,
+          classifier,
+          knowledgeBase,
+          ids,
+          clock,
+        }),
+      inject: [
+        MESSAGE_REPOSITORY,
+        PROCESSING_REVISION_REPOSITORY,
+        CLASSIFIER_PORT,
+        KNOWLEDGE_BASE_REPOSITORY,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: RETRY_MESSAGE_PROCESSING,
+      useFactory: (
+        messages: MessageRepository,
+        revisions: ProcessingRevisionRepository,
+        processing: ProcessInboundMessage,
+      ): RetryMessageProcessing =>
+        new RetryMessageProcessing({ messages, revisions, processing }),
+      inject: [
+        MESSAGE_REPOSITORY,
+        PROCESSING_REVISION_REPOSITORY,
+        PROCESS_INBOUND_MESSAGE,
+      ],
+    },
+    {
       provide: RECEIVE_INBOUND_EMAIL,
       useFactory: (
         conversations: ConversationRepository,
         messages: MessageRepository,
+        revisions: ProcessingRevisionRepository,
         profile: OrganizationProfileRepository,
+        processing: ProcessInboundMessage,
         ids: IdGenerator,
         clock: Clock,
       ): ReceiveInboundEmail =>
         new ReceiveInboundEmail({
           conversations,
           messages,
+          revisions,
           profile,
+          processing,
           ids,
           clock,
         }),
       inject: [
         CONVERSATION_REPOSITORY,
         MESSAGE_REPOSITORY,
+        PROCESSING_REVISION_REPOSITORY,
         ORGANIZATION_PROFILE_REPOSITORY,
+        PROCESS_INBOUND_MESSAGE,
         ID_GENERATOR,
         CLOCK,
       ],
@@ -222,16 +299,26 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       useFactory: (
         conversations: ConversationRepository,
         messages: MessageRepository,
-      ): ListInbox => new ListInbox({ conversations, messages }),
-      inject: [CONVERSATION_REPOSITORY, MESSAGE_REPOSITORY],
+        revisions: ProcessingRevisionRepository,
+      ): ListInbox => new ListInbox({ conversations, messages, revisions }),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        MESSAGE_REPOSITORY,
+        PROCESSING_REVISION_REPOSITORY,
+      ],
     },
     {
       provide: GET_THREAD,
       useFactory: (
         conversations: ConversationRepository,
         messages: MessageRepository,
-      ): GetThread => new GetThread({ conversations, messages }),
-      inject: [CONVERSATION_REPOSITORY, MESSAGE_REPOSITORY],
+        revisions: ProcessingRevisionRepository,
+      ): GetThread => new GetThread({ conversations, messages, revisions }),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        MESSAGE_REPOSITORY,
+        PROCESSING_REVISION_REPOSITORY,
+      ],
     },
     OwnerSeeder,
     SessionGuard,
