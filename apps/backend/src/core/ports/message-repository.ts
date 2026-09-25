@@ -13,6 +13,12 @@ export interface MessageRepository {
     sourceMessageId: string,
   ): Promise<StoredMessage | undefined>;
 
+  /** The stored message with that id, if any (processing reads). */
+  findById(
+    organizationId: string,
+    messageId: string,
+  ): Promise<StoredMessage | undefined>;
+
   /** Threading lookup against stored RFC Message-IDs in one mailbox. */
   findByRfcMessageId(
     mailboxId: string,

@@ -88,15 +88,19 @@ export interface StoredMessage {
   readonly sentAt: string | null;
 }
 
+/** Owner inbox filters (PLAN.md task 3.6). */
+export type InboxFilter = "all" | "needs_human" | "complaints";
+
 /** InboxItem JSON shape (docs/PLAN.md "JSON shapes the UI needs"). */
 export interface InboxItem {
   readonly conversationId: string;
   readonly from: { readonly address: string; readonly name?: string };
   readonly subject?: string;
   readonly latestAt: string;
-  /** Absent until the classifier lands (slice 3). */
+  /** Lane of the latest processing revision, once one exists. */
   readonly lane?: Lane;
   readonly processing: ProcessingStatus;
+  /** True when the latest revision's lane is `complaint`. */
   readonly urgent: boolean;
   readonly automationPaused: boolean;
   readonly preview: string;
@@ -116,7 +120,8 @@ export interface ThreadMessage {
   readonly text?: string;
 }
 
-/** Thread JSON shape (slice 2: conversation + messages only). */
+/** Thread JSON shape. `processing` is the latest revision of the
+ * conversation's latest message (slice 3). */
 export interface Thread {
   readonly conversation: {
     readonly id: string;
@@ -125,6 +130,11 @@ export interface Thread {
     readonly automationPaused: boolean;
   };
   readonly messages: readonly ThreadMessage[];
+  readonly processing?: {
+    readonly status: ProcessingStatus;
+    readonly lane?: Lane;
+    readonly summary: string;
+  };
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */
