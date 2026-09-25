@@ -373,12 +373,12 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 5.
 
-- [ ] **6.1** Pure `buildQuote` plus domain tests: fixed, per-unit, minimum charge, default quantity as assumption, missing quantity, unknown line, tax exclusive, tax inclusive, tax none, half-up rounding.
-- [ ] **6.2** Migration: `quote_versions`. Token stored as SHA-256. Raw token exists only in the outbound body and the send response path that embeds the link.
-- [ ] **6.3** Quote lane creates `prepared` version + proposed draft whose amounts come from the renderer. Unpriceable mail is `needs_human` and has no sendable draft.
-- [ ] **6.4** Send moves that quote version `prepared → sent`, sets validity from organization config, and revokes the token of any previous sent version on that conversation (supersede).
-- [ ] **6.5** `RecordQuoteDecision` for the public token. GET is read-only. Same decision replays. Conflicting decision is 409. Expired, superseded, or unknown token is 404. Acceptance does not create a payment or booking row.
-- [ ] **6.6** Next `/quote/[token]`: SSR display, then an explicit confirm control posting accept or decline. Buttons are not plain links.
+- [x] **6.1** Pure `buildQuote` plus domain tests: fixed, per-unit, minimum charge, default quantity as assumption, missing quantity, unknown line, tax exclusive, tax inclusive, tax none, half-up rounding.
+- [x] **6.2** Migration: `quote_versions`. Token stored as SHA-256. Raw token exists only in the outbound body and the send response path that embeds the link.
+- [x] **6.3** Quote lane creates `prepared` version + proposed draft whose amounts come from the renderer. Unpriceable mail is `needs_human` and has no sendable draft.
+- [x] **6.4** Send moves that quote version `prepared → sent`, sets validity from organization config, and revokes the token of any previous sent version on that conversation (supersede).
+- [x] **6.5** `RecordQuoteDecision` for the public token. GET is read-only. Same decision replays. Conflicting decision is 409. Expired, superseded, or unknown token is 404. Acceptance does not create a payment or booking row.
+- [x] **6.6** Next `/quote/[token]`: SSR display, then an explicit confirm control posting accept or decline. Buttons are not plain links.
 
 **Acceptance:** changing the price list does not change an already sent version. A link scanner that only GETs leaves status `sent`. Domain tests never open a database.
 
