@@ -1,6 +1,5 @@
 import { ConflictError } from "../domain/errors";
 import type { PublicQuote, QuoteDecision, QuoteVersion } from "../domain/quote";
-import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { Clock } from "../ports/clock";
 import type { IdGenerator } from "../ports/id-generator";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
