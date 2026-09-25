@@ -10,6 +10,7 @@ import {
   pgOperatorSessions,
   pgOutboxEntries,
   pgProcessingRevisions,
+  pgQuoteVersions,
   sqliteAuditEvents,
   sqliteConversations,
   sqliteDraftRevisions,
@@ -18,6 +19,7 @@ import {
   sqliteOperatorSessions,
   sqliteOutboxEntries,
   sqliteProcessingRevisions,
+  sqliteQuoteVersions,
 } from "./schema";
 
 interface TableShape {
@@ -113,6 +115,10 @@ describe("pg/sqlite schema parity", () => {
 
   it("audit_events matches", () => {
     expect(sqliteShape(sqliteAuditEvents)).toEqual(pgShape(pgAuditEvents));
+  });
+
+  it("quote_versions matches", () => {
+    expect(sqliteShape(sqliteQuoteVersions)).toEqual(pgShape(pgQuoteVersions));
   });
 
   it("draft_revisions carries the slice-5 origin column", () => {

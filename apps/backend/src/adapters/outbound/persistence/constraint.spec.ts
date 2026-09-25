@@ -14,6 +14,7 @@ import {
   sqliteDraftRevisions,
   sqliteMessages,
   sqliteOutboxEntries,
+  sqliteQuoteVersions,
 } from "./schema";
 
 // src/adapters/outbound/persistence -> apps/backend/drizzle/migrations/sqlite.
@@ -238,5 +239,58 @@ describe("outbox_entries message_id constraint (SQLite, slice 5)", () => {
         .values(outboxRow({ id: "outbox-2" }))
         .run(),
     ).toThrow(/UNIQUE constraint failed: outbox_entries\.message_id/);
+  });
+});
+
+describe("quote_versions token_hash constraint (SQLite, slice 6)", () => {
+  it("the unique index fires on a second non-null token hash and tolerates nulls", () => {
+    const db = client.open() as SqliteDb;
+    db.insert(sqliteConversations)
+      .values(conversationRow({ id: "conv-quote" }))
+      .run();
+
+    const quoteRow = (overrides: Record<string, unknown> = {}) => ({
+      id: "quote-1",
+      organizationId: "org_harbour_pine",
+      conversationId: "conv-quote",
+      draftRevisionId: null,
+      status: "prepared",
+      tokenHash: null,
+      lines: JSON.stringify([]),
+      assumptions: JSON.stringify([]),
+      currency: "AUD",
+      subtotalMinor: 6500,
+      taxMinor: 650,
+      totalMinor: 7150,
+      priceListVersion: "pl-1",
+      validUntil: null,
+      sentAt: null,
+      decidedAt: null,
+      decision: null,
+      createdAt: "2025-06-01T00:00:00.000Z",
+      updatedAt: "2025-06-01T00:00:00.000Z",
+      ...overrides,
+    });
+
+    // Many `prepared` versions may all have a null token hash.
+    db.insert(sqliteQuoteVersions).values(quoteRow()).run();
+    expect(() =>
+      db
+        .insert(sqliteQuoteVersions)
+        .values(quoteRow({ id: "quote-2" }))
+        .run(),
+    ).not.toThrow();
+
+    // One live token per quote: a second row with the same hash is
+    // rejected at the database level (slice 6 acceptance).
+    db.insert(sqliteQuoteVersions)
+      .values(quoteRow({ id: "quote-3", tokenHash: "hash-a" }))
+      .run();
+    expect(() =>
+      db
+        .insert(sqliteQuoteVersions)
+        .values(quoteRow({ id: "quote-4", tokenHash: "hash-a" }))
+        .run(),
+    ).toThrow(/UNIQUE constraint failed: quote_versions\.token_hash/);
   });
 });

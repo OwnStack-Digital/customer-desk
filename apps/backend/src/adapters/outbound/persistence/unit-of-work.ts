@@ -14,6 +14,7 @@ import type {
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
 import { DrizzleMessageRepository } from "./message-repository";
 import { DrizzleOutboxRepository } from "./outbox-repository";
+import { DrizzleQuoteVersionRepository } from "./quote-version-repository";
 
 /**
  * A `PersistenceClient` whose `open()` returns the transaction handle
@@ -82,6 +83,7 @@ export class DrizzleUnitOfWork implements UnitOfWork {
       drafts: new DrizzleDraftRevisionRepository(txClient),
       outbox: new DrizzleOutboxRepository(txClient),
       audit: new DrizzleAuditEventRepository(txClient),
+      quotes: new DrizzleQuoteVersionRepository(txClient),
     };
   }
 }

@@ -83,29 +83,26 @@ export function buildQuote(
       continue;
     }
     let quantity: number | undefined;
+    let base: number;
     if (rule.kind === "per_unit") {
-      if (requested.quantity !== undefined) {
-        quantity = requested.quantity;
-      } else if (rule.defaultQuantity !== undefined) {
-        quantity = rule.defaultQuantity;
-        assumptions.push(
-          `Assumed quantity ${quantity} ${rule.unit ?? "(unit)"}(s) for "${rule.label}".`,
-        );
-      } else {
+      const resolved = requested.quantity ?? rule.defaultQuantity;
+      if (resolved === undefined) {
         reasons.push(
           `"${rule.label}" needs a quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
         );
         continue;
       }
-      if (!isPositiveInteger(quantity)) {
+      if (!isPositiveInteger(resolved)) {
         reasons.push(
           `"${rule.label}" needs a positive whole-number quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
         );
         continue;
       }
+      quantity = resolved;
+      base = rule.amountMinor * resolved;
+    } else {
+      base = rule.amountMinor;
     }
-    const base =
-      rule.kind === "per_unit" ? rule.amountMinor * quantity : rule.amountMinor;
     let amountMinor = base;
     if (
       rule.minimumChargeMinor !== undefined &&

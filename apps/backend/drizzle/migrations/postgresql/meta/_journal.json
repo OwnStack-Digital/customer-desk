@@ -36,6 +36,13 @@
       "when": 1790349000000,
       "tag": "0004_outbox_and_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790350000000,
+      "tag": "0005_quote_versions",
+      "breakpoints": true
     }
   ]
 }

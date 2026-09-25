@@ -119,8 +119,8 @@ export function unknownLine(topic: string): string {
  * verbatim, so every non-wrapper sentence is grounded in a block.
  */
 export function buildFaqBody(input: FaqBodyInput): string {
-  const greeting = clean(input.greeting);
-  const closing = clean(input.closing);
+  const greeting = cleanWording(input.greeting);
+  const closing = cleanWording(input.closing);
   const blocks = [...input.blocks].sort(compareFactIds);
   const lines = [
     ...(greeting ? [greeting] : []),
@@ -131,7 +131,13 @@ export function buildFaqBody(input: FaqBodyInput): string {
   return lines.join("\n\n");
 }
 
-function clean(wording: string | undefined): string | undefined {
+/**
+ * Drafter wording after the drop rule: trimmed, or `undefined` when it
+ * must be dropped entirely (empty, digits, currency, promise words).
+ * Shared by the FAQ and quote renderers — only this wording is droppable;
+ * the deterministic bodies themselves are rendered in code.
+ */
+export function cleanWording(wording: string | undefined): string | undefined {
   if (wording === undefined) {
     return undefined;
   }
