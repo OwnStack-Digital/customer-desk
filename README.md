@@ -28,8 +28,14 @@ cp .env.example .env   # fill in secrets locally; never commit them
 
 ```sh
 docker compose up -d       # PostgreSQL 17 on 127.0.0.1:5432, db/user/pass: bos
-bun run db:migrate         # applies migrations (no-op until tables land)
+bun run db:migrate         # applies migrations for DB_DIALECT (postgres default)
 ```
+
+## Owner login
+
+On boot, when no operator credentials exist, the backend seeds one owner
+from `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` (see `.env.example`). Sign in
+at the web app's `/login`; the session cookie lasts 7 days.
 
 ## Run
 
@@ -43,7 +49,8 @@ Production-shaped run: `bun run build` then `bun run start:api`
 (`node apps/backend/dist/main.js`).
 
 Health check: `curl http://127.0.0.1:3001/health` → `{"status":"ok"}`.
-Boot and health never require a database connection.
+Boot seeds the owner account, so it needs the database to be reachable;
+`GET /health` itself still touches no database.
 
 ## Check
 
