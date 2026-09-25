@@ -9,6 +9,7 @@ import type { AuditEventRepository } from "../../../core/ports/audit-event-repos
 import type { Clock } from "../../../core/ports/clock";
 import type { IdGenerator } from "../../../core/ports/id-generator";
 import type { OrganizationProfileRepository } from "../../../core/ports/organization-profile-repository";
+import type { TransactionScopedRepositories } from "../../../core/ports/unit-of-work";
 import { SendApprovedDraft } from "../../../core/use-cases/send-approved-draft";
 import { DrizzleAuditEventRepository } from "./audit-event-repository";
 import { createPersistenceClient, type PersistenceClient, type SqliteDb } from "./client";
@@ -102,16 +103,11 @@ class AuditFailingUnitOfWork extends DrizzleUnitOfWork {
   constructor() {
     super(client);
   }
-  async run<T>(
-    fn: (repos: {
-      messages: unknown;
-      drafts: unknown;
-      outbox: unknown;
-      audit: unknown;
-    }) => Promise<T>,
+  override async run<T>(
+    fn: (repos: TransactionScopedRepositories) => Promise<T>,
   ): Promise<T> {
     return super.run((repos) =>
-      fn({ ...repos, audit: new FailingAuditRepository(repos.audit as AuditEventRepository) }),
+      fn({ ...repos, audit: new FailingAuditRepository(repos.audit) }),
     );
   }
 }

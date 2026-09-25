@@ -13,6 +13,7 @@ import {
   sqliteConversations,
   sqliteDraftRevisions,
   sqliteMessages,
+  sqliteOutboxEntries,
 } from "./schema";
 
 // src/adapters/outbound/persistence -> apps/backend/drizzle/migrations/sqlite.
@@ -195,5 +196,47 @@ describe("draft_revisions outbound_message_id constraint (SQLite)", () => {
         .values(draftRow({ id: "draft-5", outboundMessageId: "msg-out-2" }))
         .run(),
     ).not.toThrow();
+  });
+});
+
+describe("outbox_entries message_id constraint (SQLite, slice 5)", () => {
+  it("the unique index fires on a second row with the same message id", () => {
+    const db = client.open() as SqliteDb;
+    db.insert(sqliteConversations)
+      .values(conversationRow({ id: "conv-outbox" }))
+      .run();
+    db.insert(sqliteMessages)
+      .values(
+        messageRow({
+          id: "msg-outbox",
+          conversationId: "conv-outbox",
+          sourceMessageId: "src-outbox",
+        }),
+      )
+      .run();
+
+    const outboxRow = (overrides: Record<string, unknown> = {}) => ({
+      id: "outbox-1",
+      organizationId: "org_harbour_pine",
+      messageId: "msg-outbox",
+      conversationId: "conv-outbox",
+      recipient: "sam@example.test",
+      status: "queued",
+      attempts: 0,
+      lastError: null,
+      createdAt: "2025-06-01T00:00:00.000Z",
+      updatedAt: "2025-06-01T00:00:00.000Z",
+      ...overrides,
+    });
+
+    db.insert(sqliteOutboxEntries).values(outboxRow()).run();
+    // One outbox row per outbound message: the unique index is the last
+    // line of defense behind the conditional consume.
+    expect(() =>
+      db
+        .insert(sqliteOutboxEntries)
+        .values(outboxRow({ id: "outbox-2" }))
+        .run(),
+    ).toThrow(/UNIQUE constraint failed: outbox_entries\.message_id/);
   });
 });

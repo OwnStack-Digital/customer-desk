@@ -2,17 +2,21 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import {
+  pgAuditEvents,
   pgConversations,
   pgDraftRevisions,
   pgMessages,
   pgOperatorCredentials,
   pgOperatorSessions,
+  pgOutboxEntries,
   pgProcessingRevisions,
+  sqliteAuditEvents,
   sqliteConversations,
   sqliteDraftRevisions,
   sqliteMessages,
   sqliteOperatorCredentials,
   sqliteOperatorSessions,
+  sqliteOutboxEntries,
   sqliteProcessingRevisions,
 } from "./schema";
 
@@ -101,5 +105,20 @@ describe("pg/sqlite schema parity", () => {
     expect(sqliteShape(sqliteDraftRevisions)).toEqual(
       pgShape(pgDraftRevisions),
     );
+  });
+
+  it("outbox_entries matches", () => {
+    expect(sqliteShape(sqliteOutboxEntries)).toEqual(
+      pgShape(pgOutboxEntries),
+    );
+  });
+
+  it("audit_events matches", () => {
+    expect(sqliteShape(sqliteAuditEvents)).toEqual(pgShape(pgAuditEvents));
+  });
+
+  it("draft_revisions carries the slice-5 origin column", () => {
+    expect(sqliteShape(sqliteDraftRevisions).columns).toContain("origin");
+    expect(pgShape(pgDraftRevisions).columns).toContain("origin");
   });
 });
