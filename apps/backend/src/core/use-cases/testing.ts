@@ -11,17 +11,13 @@ import type {
   Lane,
   StoredMessage,
 } from "../domain/messaging";
+import type { AuditEvent, OutboxEntry, OutboxItem } from "../domain/outbox";
 import type {
   Classification,
   ClassifierInput,
   ProcessingRevision,
 } from "../domain/processing";
 import { ClassifierError } from "../domain/processing";
-import type {
-  AuditEvent,
-  OutboxEntry,
-  OutboxItem,
-} from "../domain/outbox";
 import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
@@ -222,8 +218,7 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
   ): Promise<DraftRevision | undefined> {
     return Promise.resolve(
       this.rows.find(
-        (row) =>
-          row.organizationId === organizationId && row.id === revisionId,
+        (row) => row.organizationId === organizationId && row.id === revisionId,
       ),
     );
   }

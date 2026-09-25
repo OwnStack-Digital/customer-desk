@@ -6,11 +6,11 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../../../app.module";
+import { EMAIL_SENDER_PORT } from "../../../core/ports/email-sender";
 import {
   createPersistenceClient,
   type SqliteDb,
 } from "../../outbound/persistence/client";
-import { EMAIL_SENDER_PORT } from "../../../core/ports/email-sender";
 
 // apps/backend/src/adapters/inbound/http -> apps/backend/drizzle/migrations.
 const MIGRATIONS = join(
@@ -85,7 +85,10 @@ async function loginCookie(): Promise<string> {
 }
 
 /** Ingests a fresh FAQ fixture and returns its ids. */
-async function ingest(sourceMessageId: string, overrides: Record<string, unknown> = {}) {
+async function ingest(
+  sourceMessageId: string,
+  overrides: Record<string, unknown> = {},
+) {
   const response = await request(app.getHttpServer())
     .post("/inbound/emails")
     .set("Authorization", `Bearer ${INGRESS_KEY}`)
@@ -406,7 +409,10 @@ describe("POST /drafts/:revisionId/send and GET /outbox over HTTP", () => {
     // email sender (PLAN.md task 5.5: recording fake, unused by HTTP).
     expect(
       items.every(
-        (item) => item.status === "queued" || item.status === "failed" || item.status === "uncertain",
+        (item) =>
+          item.status === "queued" ||
+          item.status === "failed" ||
+          item.status === "uncertain",
       ),
     ).toBe(true);
     const sender = app.get(EMAIL_SENDER_PORT) as { recorded: unknown[] };

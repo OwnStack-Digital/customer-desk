@@ -1,5 +1,5 @@
-import type { DraftRevisionRepository } from "./draft-revision-repository";
 import type { AuditEventRepository } from "./audit-event-repository";
+import type { DraftRevisionRepository } from "./draft-revision-repository";
 import type { MessageRepository } from "./message-repository";
 import type { OutboxRepository } from "./outbox-repository";
 

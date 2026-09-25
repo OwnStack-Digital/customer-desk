@@ -1,13 +1,13 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import type { PostgresDb } from "./client";
 import postgres from "postgres";
+import { describe, expect, it } from "vitest";
 import type { OrganizationProfile } from "../../../core/domain/config";
 import type { Clock } from "../../../core/ports/clock";
 import type { IdGenerator } from "../../../core/ports/id-generator";
 import type { OrganizationProfileRepository } from "../../../core/ports/organization-profile-repository";
 import { SendApprovedDraft } from "../../../core/use-cases/send-approved-draft";
+import type { PostgresDb } from "./client";
 import { createPersistenceClient } from "./client";
 import { DrizzleConversationRepository } from "./conversation-repository";
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
@@ -133,10 +133,12 @@ describe("concurrent send of one approved revision (Postgres)", () => {
     expect(second?.messageId).toBe(first?.messageId);
 
     // Exactly one outbound message and one outbox row in the database.
-    const messageRows = await sql`SELECT id, direction FROM messages WHERE conversation_id = ${conversationId} AND direction = 'outbound'`;
+    const messageRows =
+      await sql`SELECT id, direction FROM messages WHERE conversation_id = ${conversationId} AND direction = 'outbound'`;
     expect(messageRows).toHaveLength(1);
     expect(messageRows[0]?.id).toBe(first?.messageId);
-    const outboxRows = await sql`SELECT message_id, status FROM outbox_entries WHERE conversation_id = ${conversationId}`;
+    const outboxRows =
+      await sql`SELECT message_id, status FROM outbox_entries WHERE conversation_id = ${conversationId}`;
     expect(outboxRows).toHaveLength(1);
     expect(outboxRows[0]).toEqual({
       message_id: first?.messageId,
@@ -144,7 +146,8 @@ describe("concurrent send of one approved revision (Postgres)", () => {
     });
 
     // The draft is consumed exactly once, referencing that message.
-    const draftRow = await sql`SELECT status, outbound_message_id FROM draft_revisions WHERE id = ${draftId}`;
+    const draftRow =
+      await sql`SELECT status, outbound_message_id FROM draft_revisions WHERE id = ${draftId}`;
     expect(draftRow[0]).toEqual({
       status: "consumed",
       outbound_message_id: first?.messageId,

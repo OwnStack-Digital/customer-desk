@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { KnowledgeBase } from "../domain/config";
 import type { DraftRevision } from "../domain/drafting";
 import { ConflictError, StaleRevisionError } from "../domain/errors";
-import type { KnowledgeBase } from "../domain/config";
 import { ProcessInboundMessage } from "./process-inbound-message";
 import {
   classificationOf,
@@ -9,7 +9,6 @@ import {
   FixedClock,
   harness,
   ORG,
-  outboundFixture,
   SequentialIds,
 } from "./testing";
 
@@ -36,7 +35,11 @@ async function receiveFaq(
 ) {
   h.classifier.script(faqClassification(factIds));
   return h.receive.run(
-    email({ subject: "Your hours", text: "What are your hours?", ...overrides }),
+    email({
+      subject: "Your hours",
+      text: "What are your hours?",
+      ...overrides,
+    }),
   );
 }
 
@@ -60,7 +63,9 @@ describe("ReviewDraft (task 5.2)", () => {
     expect(await h.drafts.findById(ORG, original.id)).toMatchObject({
       status: "superseded",
     });
-    expect(await h.drafts.findById(ORG, reviewed?.revisionId ?? "")).toMatchObject({
+    expect(
+      await h.drafts.findById(ORG, reviewed?.revisionId ?? ""),
+    ).toMatchObject({
       status: "proposed",
       origin: "operator",
       conversationId: received.conversationId,
@@ -74,9 +79,15 @@ describe("ReviewDraft (task 5.2)", () => {
     const h = harness();
     const received = await receiveFaq(h);
     const original = h.drafts.rows[0] as DraftRevision;
-    await h.reviewDraft.run(ORG, received.conversationId, original.id, {
-      action: "approve",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      original.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
     expect(await h.drafts.findById(ORG, original.id)).toMatchObject({
       status: "approved",
     });
@@ -92,7 +103,9 @@ describe("ReviewDraft (task 5.2)", () => {
     expect(await h.drafts.findById(ORG, original.id)).toMatchObject({
       status: "superseded",
     });
-    expect(await h.drafts.findById(ORG, reviewed?.revisionId ?? "")).toMatchObject({
+    expect(
+      await h.drafts.findById(ORG, reviewed?.revisionId ?? ""),
+    ).toMatchObject({
       status: "proposed",
     });
   });
@@ -150,13 +163,25 @@ describe("ReviewDraft (task 5.2)", () => {
 
     // A discarded revision is stale the same way.
     const draftId = edited?.revisionId as string;
-    await h.reviewDraft.run(ORG, received.conversationId, draftId, {
-      action: "discard",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      draftId,
+      {
+        action: "discard",
+      },
+      "operator",
+    );
     await expect(
-      h.reviewDraft.run(ORG, received.conversationId, draftId, {
-        action: "approve",
-      }, "operator"),
+      h.reviewDraft.run(
+        ORG,
+        received.conversationId,
+        draftId,
+        {
+          action: "approve",
+        },
+        "operator",
+      ),
     ).rejects.toBeInstanceOf(StaleRevisionError);
   });
 
@@ -176,9 +201,15 @@ describe("ReviewDraft (task 5.2)", () => {
       status: "discarded",
     });
     await expect(
-      h.reviewDraft.run(ORG, received.conversationId, original.id, {
-        action: "discard",
-      }, "operator"),
+      h.reviewDraft.run(
+        ORG,
+        received.conversationId,
+        original.id,
+        {
+          action: "discard",
+        },
+        "operator",
+      ),
     ).rejects.toBeInstanceOf(StaleRevisionError);
     expect(h.audit.rows.map((row) => row.action)).toEqual(["draft.discarded"]);
   });
@@ -188,14 +219,26 @@ describe("ReviewDraft (task 5.2)", () => {
     const received = await receiveFaq(h);
     const original = h.drafts.rows[0] as DraftRevision;
     expect(
-      await h.reviewDraft.run(ORG, received.conversationId, "ulid-nope", {
-        action: "approve",
-      }, "operator"),
+      await h.reviewDraft.run(
+        ORG,
+        received.conversationId,
+        "ulid-nope",
+        {
+          action: "approve",
+        },
+        "operator",
+      ),
     ).toBeUndefined();
     expect(
-      await h.reviewDraft.run(ORG, "ulid-other-conversation", original.id, {
-        action: "approve",
-      }, "operator"),
+      await h.reviewDraft.run(
+        ORG,
+        "ulid-other-conversation",
+        original.id,
+        {
+          action: "approve",
+        },
+        "operator",
+      ),
     ).toBeUndefined();
   });
 
@@ -203,9 +246,15 @@ describe("ReviewDraft (task 5.2)", () => {
     const h = harness();
     const received = await receiveFaq(h);
     const original = h.drafts.rows[0] as DraftRevision;
-    await h.reviewDraft.run(ORG, received.conversationId, original.id, {
-      action: "approve",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      original.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
     await h.sendDraft.run(ORG, original.id, "operator");
     await expect(
       h.reviewDraft.run(
@@ -249,9 +298,15 @@ describe("take-over (task 5.4)", () => {
       messageId: "<take-1@customer.example>",
     });
     const draft = h.drafts.rows[0] as DraftRevision;
-    await h.reviewDraft.run(ORG, first.conversationId, draft.id, {
-      action: "approve",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      first.conversationId,
+      draft.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
     await h.takeOver.run(ORG, first.conversationId, "operator");
 
     // A new FAQ email in the same thread: classification is still recorded
@@ -274,9 +329,7 @@ describe("take-over (task 5.4)", () => {
 
     // Classification still happened: two processing revisions now.
     expect(
-      h.revisions.rows.filter(
-        (row) => row.messageId === second.messageId,
-      ),
+      h.revisions.rows.filter((row) => row.messageId === second.messageId),
     ).toHaveLength(1);
     const latest = await h.getThread.run(ORG, first.conversationId);
     expect(latest?.processing).toMatchObject({ lane: "faq" });
@@ -288,9 +341,15 @@ describe("SendApprovedDraft (task 5.3)", () => {
     const h = harness();
     const received = await receiveFaq(h);
     const draft = h.drafts.rows[0] as DraftRevision;
-    await h.reviewDraft.run(ORG, received.conversationId, draft.id, {
-      action: "approve",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      draft.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
 
     const result = await h.sendDraft.run(ORG, draft.id, "operator");
     expect(result).toMatchObject({
@@ -332,32 +391,46 @@ describe("SendApprovedDraft (task 5.3)", () => {
     const h = harness();
     const received = await receiveFaq(h);
     const draft = h.drafts.rows[0] as DraftRevision;
-    await h.reviewDraft.run(ORG, received.conversationId, draft.id, {
-      action: "approve",
-    }, "operator");
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      draft.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
     const first = await h.sendDraft.run(ORG, draft.id, "operator");
     const second = await h.sendDraft.run(ORG, draft.id, "operator");
     expect(second?.messageId).toBe(first?.messageId);
     expect(second).toEqual(first);
     expect(h.messages.rows).toHaveLength(2); // still one outbound
     expect(h.outbox.rows).toHaveLength(1); // still one outbox row
-    expect(h.audit.rows.filter((row) => row.action === "draft.sent")).toHaveLength(1);
+    expect(
+      h.audit.rows.filter((row) => row.action === "draft.sent"),
+    ).toHaveLength(1);
   });
 
   it("sending a proposed, discarded, or superseded revision is 409 conflict", async () => {
     const h = harness();
     const received = await receiveFaq(h);
     const draft = h.drafts.rows[0] as DraftRevision;
-    await expect(h.sendDraft.run(ORG, draft.id, "operator")).rejects.toBeInstanceOf(
-      ConflictError,
-    );
+    await expect(
+      h.sendDraft.run(ORG, draft.id, "operator"),
+    ).rejects.toBeInstanceOf(ConflictError);
 
-    await h.reviewDraft.run(ORG, received.conversationId, draft.id, {
-      action: "discard",
-    }, "operator");
-    await expect(h.sendDraft.run(ORG, draft.id, "operator")).rejects.toBeInstanceOf(
-      ConflictError,
+    await h.reviewDraft.run(
+      ORG,
+      received.conversationId,
+      draft.id,
+      {
+        action: "discard",
+      },
+      "operator",
     );
+    await expect(
+      h.sendDraft.run(ORG, draft.id, "operator"),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("an unknown revision resolves to undefined (404)", async () => {
@@ -369,7 +442,7 @@ describe("SendApprovedDraft (task 5.3)", () => {
 describe("processing draft-replacement policy (task 5.4)", () => {
   it("a new machine draft supersedes the untouched machine original", async () => {
     const h = harness();
-    const first = await receiveFaq(h, {
+    await receiveFaq(h, {
       sourceMessageId: "src-replace-1",
       messageId: "<replace-1@customer.example>",
     });
@@ -435,9 +508,15 @@ describe("processing draft-replacement policy (task 5.4)", () => {
       messageId: "<keep-1@customer.example>",
     });
     const approvedDraft = approved.drafts.rows[0] as DraftRevision;
-    await approved.reviewDraft.run(ORG, first.conversationId, approvedDraft.id, {
-      action: "approve",
-    }, "operator");
+    await approved.reviewDraft.run(
+      ORG,
+      first.conversationId,
+      approvedDraft.id,
+      {
+        action: "approve",
+      },
+      "operator",
+    );
     approved.classifier.script(faqClassification(["kb_areas"]));
     await approved.receive.run(
       email({
@@ -447,9 +526,9 @@ describe("processing draft-replacement policy (task 5.4)", () => {
         text: "What areas do you serve?",
       }),
     );
-    expect(
-      await approved.drafts.findById(ORG, approvedDraft.id),
-    ).toMatchObject({ status: "approved" });
+    expect(await approved.drafts.findById(ORG, approvedDraft.id)).toMatchObject(
+      { status: "approved" },
+    );
 
     // Discarded and consumed: terminal states stay terminal.
     for (const action of ["discard", "approve"] as const) {
@@ -459,9 +538,15 @@ describe("processing draft-replacement policy (task 5.4)", () => {
         messageId: `<term-${action}@customer.example>`,
       });
       const draft = h.drafts.rows[0] as DraftRevision;
-      await h.reviewDraft.run(ORG, received.conversationId, draft.id, {
-        action,
-      }, "operator");
+      await h.reviewDraft.run(
+        ORG,
+        received.conversationId,
+        draft.id,
+        {
+          action,
+        },
+        "operator",
+      );
       if (action === "approve") {
         await h.sendDraft.run(ORG, draft.id, "operator");
       }
@@ -531,17 +616,28 @@ describe("fact-id order (carried note 11)", () => {
       ids: new SequentialIds(),
       clock: new FixedClock(),
     });
-    const stored = { ...outboundFixture(), direction: "inbound" } as never;
     // A stored inbound message this processing run can work on.
     const message = {
-      ...outboundFixture(),
       id: "ulid-msg-mixed",
+      organizationId: ORG,
+      mailboxId: "mb_main",
       conversationId: "conv-mixed",
       direction: "inbound" as const,
+      sourceMessageId: "src-mixed",
+      messageId: "<mixed@customer.example>",
+      inReplyTo: null,
+      references: null,
+      fromAddress: "sam@example.test",
+      fromName: null,
+      to: [],
+      cc: null,
+      replyTo: null,
       subject: "Facts",
       text: "Tell me facts.",
       html: null,
       attachments: null,
+      receivedAt: "2025-06-01T00:00:00.000Z",
+      sentAt: null,
     };
     h.conversations.rows.push({
       id: "conv-mixed",
@@ -566,10 +662,21 @@ describe("fact-id order (carried note 11)", () => {
     const draft = drafts.rows[0] as DraftRevision;
     // Code-unit order: uppercase letters sort before lowercase, so
     // kb_Mixed < kb_Zebra < kb_apple (kb_hours is lowercase too).
-    expect(draft.factIds).toEqual(["kb_Mixed", "kb_Zebra", "kb_apple", "kb_hours"]);
+    expect(draft.factIds).toEqual([
+      "kb_Mixed",
+      "kb_Zebra",
+      "kb_apple",
+      "kb_hours",
+    ]);
     const body = draft.bodyText.split("\n\n");
-    expect(body.indexOf("Mixed fact.")).toBeLessThan(body.indexOf("Zebra fact."));
-    expect(body.indexOf("Zebra fact.")).toBeLessThan(body.indexOf("Apple fact."));
-    expect(body.indexOf("Apple fact.")).toBeLessThan(body.indexOf("We clean Mon to Fri."));
+    expect(body.indexOf("Mixed fact.")).toBeLessThan(
+      body.indexOf("Zebra fact."),
+    );
+    expect(body.indexOf("Zebra fact.")).toBeLessThan(
+      body.indexOf("Apple fact."),
+    );
+    expect(body.indexOf("Apple fact.")).toBeLessThan(
+      body.indexOf("We clean Mon to Fri."),
+    );
   });
 });

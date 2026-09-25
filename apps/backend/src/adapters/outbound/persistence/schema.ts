@@ -401,7 +401,5 @@ export const sqliteAuditEvents = sqliteTable(
     correlationId: sqliteText("correlation_id"),
     createdAt: sqliteText("created_at").notNull(),
   },
-  (table) => [
-    index("audit_events_organization_idx").on(table.organizationId),
-  ],
+  (table) => [index("audit_events_organization_idx").on(table.organizationId)],
 );

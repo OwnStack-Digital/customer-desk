@@ -12,7 +12,11 @@ import type { OrganizationProfileRepository } from "../../../core/ports/organiza
 import type { TransactionScopedRepositories } from "../../../core/ports/unit-of-work";
 import { SendApprovedDraft } from "../../../core/use-cases/send-approved-draft";
 import { DrizzleAuditEventRepository } from "./audit-event-repository";
-import { createPersistenceClient, type PersistenceClient, type SqliteDb } from "./client";
+import {
+  createPersistenceClient,
+  type PersistenceClient,
+  type SqliteDb,
+} from "./client";
 import { DrizzleConversationRepository } from "./conversation-repository";
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
 import { DrizzleOutboxRepository } from "./outbox-repository";
@@ -88,8 +92,6 @@ const PROFILE_REPO: OrganizationProfileRepository = {
 
 /** Audit repository that always throws, to force an in-transaction failure. */
 class FailingAuditRepository implements AuditEventRepository {
-  constructor(private readonly inner: AuditEventRepository) {}
-
   insertEvent(_event: AuditEvent): Promise<void> {
     return Promise.reject(new Error("audit sink unavailable"));
   }
@@ -107,7 +109,7 @@ class AuditFailingUnitOfWork extends DrizzleUnitOfWork {
     fn: (repos: TransactionScopedRepositories) => Promise<T>,
   ): Promise<T> {
     return super.run((repos) =>
-      fn({ ...repos, audit: new FailingAuditRepository(repos.audit) }),
+      fn({ ...repos, audit: new FailingAuditRepository() }),
     );
   }
 }

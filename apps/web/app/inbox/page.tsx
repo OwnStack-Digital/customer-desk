@@ -180,7 +180,19 @@ export default async function InboxPage({
   }
   return (
     <main style={pageStyle}>
-      <h1 style={{ fontSize: "1.25rem" }}>Inbox</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: "0.5rem",
+        }}
+      >
+        <h1 style={{ fontSize: "1.25rem" }}>Inbox</h1>
+        <a href="/outbox" style={{ fontSize: "0.9rem" }}>
+          Outbox →
+        </a>
+      </div>
       <FilterTabs current={filter} />
       {result === "error" ? (
         <p style={{ color: "#b00020" }}>

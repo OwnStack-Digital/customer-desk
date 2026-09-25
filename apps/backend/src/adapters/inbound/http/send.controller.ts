@@ -8,8 +8,6 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { validationError } from "./http-error";
-import { SessionGuard } from "./session.guard";
 import {
   SEND_APPROVED_DRAFT,
   type SendApprovedDraft,
@@ -17,6 +15,8 @@ import {
 } from "../../../core/use-cases/send-approved-draft";
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
+import { validationError } from "./http-error";
+import { SessionGuard } from "./session.guard";
 
 /** The session guard authenticates an operator; audit rows name it. */
 const OPERATOR_ACTOR = "operator";

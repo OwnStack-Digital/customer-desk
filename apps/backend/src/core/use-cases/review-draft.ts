@@ -79,10 +79,7 @@ export class ReviewDraft {
     bodyText: string,
     actor: string,
   ): Promise<ReviewedDraft> {
-    if (
-      revision.status !== "proposed" &&
-      revision.status !== "approved"
-    ) {
+    if (revision.status !== "proposed" && revision.status !== "approved") {
       throw new StaleRevisionError(
         `The draft revision ${revision.id} was already ${revision.status}.`,
       );

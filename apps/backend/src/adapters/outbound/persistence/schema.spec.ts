@@ -108,9 +108,7 @@ describe("pg/sqlite schema parity", () => {
   });
 
   it("outbox_entries matches", () => {
-    expect(sqliteShape(sqliteOutboxEntries)).toEqual(
-      pgShape(pgOutboxEntries),
-    );
+    expect(sqliteShape(sqliteOutboxEntries)).toEqual(pgShape(pgOutboxEntries));
   });
 
   it("audit_events matches", () => {

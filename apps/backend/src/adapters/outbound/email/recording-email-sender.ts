@@ -1,4 +1,7 @@
-import type { EmailSenderPort, OutboundEmail } from "../../../core/ports/email-sender";
+import type {
+  EmailSenderPort,
+  OutboundEmail,
+} from "../../../core/ports/email-sender";
 
 /**
  * Recording fake (PLAN.md task 5.5): the demonstrator's only

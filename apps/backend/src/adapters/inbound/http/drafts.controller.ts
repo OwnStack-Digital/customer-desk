@@ -7,13 +7,11 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { validationError } from "./http-error";
-import { SessionGuard } from "./session.guard";
 import {
   REVIEW_DRAFT,
-  type ReviewedDraft,
   type ReviewDraft,
   type ReviewDraftAction,
+  type ReviewedDraft,
 } from "../../../core/use-cases/review-draft";
 import {
   TAKE_OVER_CONVERSATION,
@@ -21,6 +19,8 @@ import {
 } from "../../../core/use-cases/take-over-conversation";
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
+import { validationError } from "./http-error";
+import { SessionGuard } from "./session.guard";
 
 /** The session guard authenticates an operator; audit rows name it. */
 const OPERATOR_ACTOR = "operator";
@@ -107,7 +107,5 @@ function parseAction(body: DraftActionBody): ReviewDraftAction {
     }
     return { action: "edit", bodyText: body.bodyText };
   }
-  throw validationError(
-    'action must be "edit", "approve", or "discard".',
-  );
+  throw validationError('action must be "edit", "approve", or "discard".');
 }

@@ -1,6 +1,9 @@
 import { Controller, Get, Inject, UseGuards } from "@nestjs/common";
 import type { OutboxPage } from "../../../core/domain/outbox";
-import { LIST_OUTBOX, type ListOutbox } from "../../../core/use-cases/list-outbox";
+import {
+  LIST_OUTBOX,
+  type ListOutbox,
+} from "../../../core/use-cases/list-outbox";
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
 import { SessionGuard } from "./session.guard";

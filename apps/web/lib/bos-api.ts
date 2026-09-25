@@ -152,6 +152,34 @@ export type ThreadDraft = {
   factIds?: string[];
 };
 
+/** Result of a review action: the draft revision the action left in place. */
+export type ReviewedDraft = {
+  revisionId: string;
+  status: "proposed" | "approved" | "consumed" | "discarded" | "superseded";
+  bodyText: string;
+};
+
+/** Shape returned by POST /drafts/:revisionId/send (idempotent 200). */
+export type SendResult = {
+  messageId: string;
+  conversationId: string;
+  revisionId: string;
+};
+
+/** One row of GET /outbox (docs/PLAN.md slice 5). */
+export type OutboxItem = {
+  messageId: string;
+  conversationId: string;
+  recipient: string;
+  status: "queued" | "sending" | "sent" | "failed" | "uncertain";
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+};
+
+/** Shape returned by GET /outbox. */
+export type OutboxPage = { items: OutboxItem[] };
+
 /** Thread from docs/PLAN.md (slice 3 adds processing, slice 4 the draft). */
 export type Thread = {
   conversation: {

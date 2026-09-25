@@ -1,7 +1,7 @@
 import type { DraftRevision } from "../domain/drafting";
 import { ConflictError } from "../domain/errors";
-import type { AuditEvent, OutboxEntry } from "../domain/outbox";
 import type { StoredMessage } from "../domain/messaging";
+import type { OutboxEntry } from "../domain/outbox";
 import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
@@ -95,7 +95,14 @@ export class SendApprovedDraft {
 
     try {
       return await this.deps.unitOfWork.run((repos) =>
-        this.send(organizationId, draft, conversation.fromAddress, conversation.subject, actor, repos),
+        this.send(
+          organizationId,
+          draft,
+          conversation.fromAddress,
+          conversation.subject,
+          actor,
+          repos,
+        ),
       );
     } catch (error) {
       if (error instanceof AlreadyConsumedError) {

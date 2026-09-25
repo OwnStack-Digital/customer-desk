@@ -1,6 +1,10 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 import {
+  AUDIT_EVENT_REPOSITORY,
+  type AuditEventRepository,
+} from "../../../core/ports/audit-event-repository";
+import {
   CLASSIFIER_PORT,
   type ClassifierPort,
 } from "../../../core/ports/classifier";
@@ -14,15 +18,6 @@ import {
   type DraftRevisionRepository,
 } from "../../../core/ports/draft-revision-repository";
 import { DRAFTER_PORT, type DrafterPort } from "../../../core/ports/drafter";
-import {
-  AUDIT_EVENT_REPOSITORY,
-  type AuditEventRepository,
-} from "../../../core/ports/audit-event-repository";
-import {
-  OUTBOX_REPOSITORY,
-  type OutboxRepository,
-} from "../../../core/ports/outbox-repository";
-import { UNIT_OF_WORK, type UnitOfWork } from "../../../core/ports/unit-of-work";
 import {
   ID_GENERATOR,
   type IdGenerator,
@@ -44,6 +39,10 @@ import {
   type OrganizationProfileRepository,
 } from "../../../core/ports/organization-profile-repository";
 import {
+  OUTBOX_REPOSITORY,
+  type OutboxRepository,
+} from "../../../core/ports/outbox-repository";
+import {
   PASSWORD_HASHER,
   type PasswordHasher,
 } from "../../../core/ports/password-hasher";
@@ -60,12 +59,17 @@ import {
   type TokenHasher,
 } from "../../../core/ports/token-hasher";
 import {
+  UNIT_OF_WORK,
+  type UnitOfWork,
+} from "../../../core/ports/unit-of-work";
+import {
   AUTHENTICATE_SESSION,
   AuthenticateSession,
   type AuthenticateSessionDeps,
 } from "../../../core/use-cases/authenticate-session";
 import { GET_THREAD, GetThread } from "../../../core/use-cases/get-thread";
 import { LIST_INBOX, ListInbox } from "../../../core/use-cases/list-inbox";
+import { LIST_OUTBOX, ListOutbox } from "../../../core/use-cases/list-outbox";
 import { LOGIN, Login } from "../../../core/use-cases/login";
 import {
   LOGOUT,
@@ -80,33 +84,35 @@ import {
   RECEIVE_INBOUND_EMAIL,
   ReceiveInboundEmail,
 } from "../../../core/use-cases/receive-inbound-email";
-import { REVIEW_DRAFT, ReviewDraft } from "../../../core/use-cases/review-draft";
 import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
 } from "../../../core/use-cases/retry-message-processing";
 import {
-  SEND_APPROVED_DRAFT,
-  SendApprovedDraft,
-} from "../../../core/use-cases/send-approved-draft";
+  REVIEW_DRAFT,
+  ReviewDraft,
+} from "../../../core/use-cases/review-draft";
 import {
   SEED_OWNER,
   SeedOwner,
   type SeedOwnerDeps,
 } from "../../../core/use-cases/seed-owner";
 import {
+  SEND_APPROVED_DRAFT,
+  SendApprovedDraft,
+} from "../../../core/use-cases/send-approved-draft";
+import {
   TAKE_OVER_CONVERSATION,
   TakeOverConversation,
 } from "../../../core/use-cases/take-over-conversation";
-import { LIST_OUTBOX, ListOutbox } from "../../../core/use-cases/list-outbox";
 import { OwnerSeeder } from "../../../infrastructure/composition/owner-seeder";
 import { AiModule } from "../../outbound/ai/ai.module";
 import { ConfigModule } from "../../outbound/config-files/config.module";
+import { DrizzleAuditEventRepository } from "../../outbound/persistence/audit-event-repository";
 import {
   PERSISTENCE_CLIENT,
   type PersistenceClient,
 } from "../../outbound/persistence/client";
-import { DrizzleAuditEventRepository } from "../../outbound/persistence/audit-event-repository";
 import { DrizzleConversationRepository } from "../../outbound/persistence/conversation-repository";
 import { DrizzleDraftRevisionRepository } from "../../outbound/persistence/draft-revision-repository";
 import { DrizzleMessageRepository } from "../../outbound/persistence/message-repository";

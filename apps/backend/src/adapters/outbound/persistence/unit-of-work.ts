@@ -3,6 +3,7 @@ import type {
   TransactionScopedRepositories,
   UnitOfWork,
 } from "../../../core/ports/unit-of-work";
+import { DrizzleAuditEventRepository } from "./audit-event-repository";
 import type {
   DbClient,
   DbDialect,
@@ -10,7 +11,6 @@ import type {
   PostgresDb,
   SqliteDb,
 } from "./client";
-import { DrizzleAuditEventRepository } from "./audit-event-repository";
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
 import { DrizzleMessageRepository } from "./message-repository";
 import { DrizzleOutboxRepository } from "./outbox-repository";
@@ -55,13 +55,19 @@ export class DrizzleUnitOfWork implements UnitOfWork {
         // The transaction handle carries the same query surface as the
         // root client (schema-less drizzle instance); the repos only need
         // `open()` to return something they can query with.
-        fn(this.scoped(new TransactionClient("postgres", tx as unknown as PostgresDb))),
+        fn(
+          this.scoped(
+            new TransactionClient("postgres", tx as unknown as PostgresDb),
+          ),
+        ),
       );
     }
     const sqlite = db as SqliteDb;
     await sqlite.run(sql`BEGIN IMMEDIATE`);
     try {
-      const result = await fn(this.scoped(new TransactionClient("sqlite", sqlite)));
+      const result = await fn(
+        this.scoped(new TransactionClient("sqlite", sqlite)),
+      );
       await sqlite.run(sql`COMMIT`);
       return result;
     } catch (error) {
@@ -70,9 +76,7 @@ export class DrizzleUnitOfWork implements UnitOfWork {
     }
   }
 
-  private scoped(
-    txClient: PersistenceClient,
-  ): TransactionScopedRepositories {
+  private scoped(txClient: PersistenceClient): TransactionScopedRepositories {
     return {
       messages: new DrizzleMessageRepository(txClient),
       drafts: new DrizzleDraftRevisionRepository(txClient),

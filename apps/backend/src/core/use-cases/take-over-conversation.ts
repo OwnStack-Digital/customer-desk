@@ -1,4 +1,3 @@
-import type { AuditEvent } from "../domain/outbox";
 import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
