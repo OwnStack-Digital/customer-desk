@@ -143,7 +143,16 @@ export const INBOX_FILTERS = ["all", "needs_human", "complaints"] as const;
 
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
-/** Thread from docs/PLAN.md (slice 3 adds processing). */
+/** Draft section of the thread (slice 4): the proposed FAQ reply. */
+export type ThreadDraft = {
+  revisionId: string;
+  status: "proposed" | "approved";
+  bodyText: string;
+  assumptions: string[];
+  factIds?: string[];
+};
+
+/** Thread from docs/PLAN.md (slice 3 adds processing, slice 4 the draft). */
 export type Thread = {
   conversation: {
     id: string;
@@ -164,4 +173,5 @@ export type Thread = {
     lane?: InboxItem["lane"];
     summary: string;
   };
+  draft?: ThreadDraft;
 };

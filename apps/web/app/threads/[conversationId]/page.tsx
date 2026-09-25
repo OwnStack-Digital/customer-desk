@@ -102,6 +102,48 @@ export default async function ThreadPage({
               ) : null}
             </div>
           ) : null}
+          {result.draft ? (
+            <section
+              style={{
+                margin: "1rem 0 0",
+                padding: "0.75rem",
+                border: "1px solid #2e7d32",
+                borderRadius: "8px",
+                background: "#f1f8f1",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "0.95rem",
+                  margin: "0 0 0.5rem",
+                  color: "#2e7d32",
+                }}
+              >
+                Proposed draft ({result.draft.status})
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {result.draft.bodyText}
+              </p>
+              {result.draft.factIds?.length ? (
+                <p
+                  style={{
+                    margin: "0.5rem 0 0",
+                    fontSize: "0.8rem",
+                    color: "#555",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  Grounded in knowledge facts: {result.draft.factIds.join(", ")}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
           {result.messages.length === 0 ? (
             <p style={{ color: "#555" }}>This conversation has no messages.</p>
           ) : (

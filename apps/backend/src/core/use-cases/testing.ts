@@ -4,6 +4,7 @@
  * (docs/ARCHITECTURE.md "Use cases: fakes/in-memory adapters; no network").
  */
 import type { KnowledgeBase, OrganizationProfile } from "../domain/config";
+import type { DraftRevision } from "../domain/drafting";
 import type {
   Conversation,
   InboundEmail,
@@ -19,6 +20,8 @@ import { ClassifierError } from "../domain/processing";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
+import type { DrafterPort } from "../ports/drafter";
 import type { IdGenerator } from "../ports/id-generator";
 import type { KnowledgeBaseRepository } from "../ports/knowledge-base-repository";
 import type { MessageRepository } from "../ports/message-repository";
@@ -102,6 +105,11 @@ export const KNOWLEDGE_BASE: KnowledgeBase = {
   version: "kb-1",
   blocks: [
     { id: "kb_hours", tags: ["hours", "open"], text: "We clean Mon to Fri." },
+    {
+      id: "kb_areas",
+      tags: ["areas", "suburbs"],
+      text: "We serve Balmain and Rozelle.",
+    },
   ],
 };
 
@@ -178,6 +186,40 @@ export class SequentialIds implements IdGenerator {
   }
 }
 
+/** Trivial constant drafter double — same wording every call. */
+export class ConstantDrafter implements DrafterPort {
+  async draft(): Promise<{ greeting?: string; closing?: string }> {
+    return { greeting: "Hi,", closing: "Thanks," };
+  }
+}
+
+export class FakeDraftRevisions implements DraftRevisionRepository {
+  readonly rows: DraftRevision[] = [];
+
+  insertDraft(revision: DraftRevision): Promise<void> {
+    this.rows.push({ ...revision });
+    return Promise.resolve();
+  }
+
+  findLatestByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<DraftRevision | undefined> {
+    const rows = this.rows
+      .filter(
+        (row) =>
+          row.organizationId === organizationId &&
+          row.conversationId === conversationId,
+      )
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.id.localeCompare(right.id),
+      );
+    return Promise.resolve(rows.at(-1));
+  }
+}
+
 export class FakeConversations implements ConversationRepository {
   readonly rows: Conversation[] = [];
 
@@ -202,6 +244,17 @@ export class FakeConversations implements ConversationRepository {
     return Promise.resolve(
       this.rows.filter((row) => row.organizationId === organizationId),
     );
+  }
+
+  deleteById(organizationId: string, conversationId: string): Promise<void> {
+    const index = this.rows.findIndex(
+      (row) =>
+        row.organizationId === organizationId && row.id === conversationId,
+    );
+    if (index >= 0) {
+      this.rows.splice(index, 1);
+    }
+    return Promise.resolve();
   }
 }
 
@@ -298,6 +351,8 @@ export function harness() {
   const conversations = new FakeConversations();
   const messages = new FakeMessages();
   const revisions = new FakeProcessingRevisions();
+  const drafts = new FakeDraftRevisions();
+  const drafter = new ConstantDrafter();
   const profile = new FakeProfile({
     id: ORG,
     name: "Harbour & Pine Cleaning",
@@ -314,7 +369,9 @@ export function harness() {
   const processing = new ProcessInboundMessage({
     messages,
     revisions,
+    drafts,
     classifier,
+    drafter,
     knowledgeBase,
     ids: new SequentialIds(),
     clock: new FixedClock(),
@@ -329,11 +386,18 @@ export function harness() {
     clock: new FixedClock(),
   });
   const listInbox = new ListInbox({ conversations, messages, revisions });
-  const getThread = new GetThread({ conversations, messages, revisions });
+  const getThread = new GetThread({
+    conversations,
+    messages,
+    revisions,
+    drafts,
+  });
   return {
     conversations,
     messages,
     revisions,
+    drafts,
+    drafter,
     classifier,
     knowledgeBase,
     processing,

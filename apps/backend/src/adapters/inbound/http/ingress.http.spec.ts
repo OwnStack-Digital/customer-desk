@@ -148,6 +148,33 @@ describe("POST /inbound/emails over HTTP", () => {
     expect(response.body.processing).toBe("needs_human");
   });
 
+  it("HTML-only mail (no usable text) is needs_human and the message is retained", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({
+          sourceMessageId: "src-html-only",
+          subject: "What are your hours?",
+          text: undefined,
+          html: "<p>What are your hours?</p>",
+        }),
+      );
+    expect(response.status).toBe(201);
+    expect(response.body.processing).toBe("needs_human");
+
+    // The message stays stored and no draft was grounded on it.
+    const cookie = await loginCookie();
+    const thread = await request(app.getHttpServer())
+      .get(`/threads/${response.body.conversationId}`)
+      .set("Cookie", cookie);
+    expect(thread.status).toBe(200);
+    expect(thread.body.messages).toHaveLength(1);
+    expect(thread.body.draft).toBeUndefined();
+    expect(thread.body.processing.status).toBe("needs_human");
+    expect(thread.body.processing.summary).toMatch(/No usable text/);
+  });
+
   it("replays the same source key: 200, original ids, duplicate true", async () => {
     const first = await request(app.getHttpServer())
       .post("/inbound/emails")
@@ -395,6 +422,50 @@ describe("owner reads over HTTP", () => {
       .set("Cookie", cookie);
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe("not_found");
+  });
+
+  it("serves a FAQ thread with the proposed draft and the fact ids used", async () => {
+    // A FAQ fixture: "hours" and "areas" match kb_hours and kb_areas.
+    const received = await request(app.getHttpServer())
+      .post("/inbound/emails")
+      .set("Authorization", `Bearer ${INGRESS_KEY}`)
+      .send(
+        fixture({
+          sourceMessageId: "src-faq",
+          subject: "Your hours and areas",
+          text: "What are your opening hours and areas?",
+          html: undefined,
+        }),
+      );
+    expect(received.status).toBe(201);
+    expect(received.body.processing).toBe("ready");
+
+    const cookie = await loginCookie();
+    const thread = await request(app.getHttpServer())
+      .get(`/threads/${received.body.conversationId}`)
+      .set("Cookie", cookie);
+    expect(thread.status).toBe(200);
+    expect(thread.body.processing).toMatchObject({
+      status: "ready",
+      lane: "faq",
+    });
+    // The draft section: proposed status, grounded body, fact ids used.
+    expect(thread.body.draft).toMatchObject({
+      status: "proposed",
+      factIds: ["kb_areas", "kb_hours"],
+      assumptions: [],
+    });
+    expect(thread.body.draft.revisionId).toEqual(expect.any(String));
+    expect(thread.body.draft.bodyText).toContain(
+      "We serve Balmain, Rozelle, Lilyfield, Birchgrove, and Mort Bay.",
+    );
+    expect(thread.body.draft.bodyText).toContain(
+      "We clean Monday to Friday, 8am to 5pm, and Saturdays 9am to 1pm.",
+    );
+    // Fact-id order: the areas text (kb_areas) comes before hours.
+    const areasAt = thread.body.draft.bodyText.indexOf("We serve Balmain");
+    const hoursAt = thread.body.draft.bodyText.indexOf("We clean Monday");
+    expect(areasAt).toBeLessThan(hoursAt);
   });
 });
 

@@ -10,6 +10,11 @@ import {
   type ConversationRepository,
 } from "../../../core/ports/conversation-repository";
 import {
+  DRAFT_REVISION_REPOSITORY,
+  type DraftRevisionRepository,
+} from "../../../core/ports/draft-revision-repository";
+import { DRAFTER_PORT, type DrafterPort } from "../../../core/ports/drafter";
+import {
   ID_GENERATOR,
   type IdGenerator,
 } from "../../../core/ports/id-generator";
@@ -83,6 +88,7 @@ import {
   type PersistenceClient,
 } from "../../outbound/persistence/client";
 import { DrizzleConversationRepository } from "../../outbound/persistence/conversation-repository";
+import { DrizzleDraftRevisionRepository } from "../../outbound/persistence/draft-revision-repository";
 import { DrizzleMessageRepository } from "../../outbound/persistence/message-repository";
 import { DrizzleOperatorCredentialRepository } from "../../outbound/persistence/operator-credential-repository";
 import { PersistenceModule } from "../../outbound/persistence/persistence.module";
@@ -151,6 +157,12 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       provide: PROCESSING_REVISION_REPOSITORY,
       useFactory: (client: PersistenceClient) =>
         new DrizzleProcessingRevisionRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: DRAFT_REVISION_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleDraftRevisionRepository(client),
       inject: [PERSISTENCE_CLIENT],
     },
     {
@@ -228,7 +240,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       useFactory: (
         messages: MessageRepository,
         revisions: ProcessingRevisionRepository,
+        drafts: DraftRevisionRepository,
         classifier: ClassifierPort,
+        drafter: DrafterPort,
         knowledgeBase: KnowledgeBaseRepository,
         ids: IdGenerator,
         clock: Clock,
@@ -236,7 +250,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         new ProcessInboundMessage({
           messages,
           revisions,
+          drafts,
           classifier,
+          drafter,
           knowledgeBase,
           ids,
           clock,
@@ -244,7 +260,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       inject: [
         MESSAGE_REPOSITORY,
         PROCESSING_REVISION_REPOSITORY,
+        DRAFT_REVISION_REPOSITORY,
         CLASSIFIER_PORT,
+        DRAFTER_PORT,
         KNOWLEDGE_BASE_REPOSITORY,
         ID_GENERATOR,
         CLOCK,
@@ -313,11 +331,14 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         conversations: ConversationRepository,
         messages: MessageRepository,
         revisions: ProcessingRevisionRepository,
-      ): GetThread => new GetThread({ conversations, messages, revisions }),
+        drafts: DraftRevisionRepository,
+      ): GetThread =>
+        new GetThread({ conversations, messages, revisions, drafts }),
       inject: [
         CONVERSATION_REPOSITORY,
         MESSAGE_REPOSITORY,
         PROCESSING_REVISION_REPOSITORY,
+        DRAFT_REVISION_REPOSITORY,
       ],
     },
     OwnerSeeder,

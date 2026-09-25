@@ -120,8 +120,19 @@ export interface ThreadMessage {
   readonly text?: string;
 }
 
+/** Draft section of the thread response (PLAN.md task 4.5). `factIds`
+ * lists the knowledge blocks the proposed FAQ body is grounded in. */
+export interface ThreadDraft {
+  readonly revisionId: string;
+  readonly status: "proposed" | "approved";
+  readonly bodyText: string;
+  readonly assumptions: readonly string[];
+  readonly factIds?: readonly string[];
+}
+
 /** Thread JSON shape. `processing` is the latest revision of the
- * conversation's latest message (slice 3). */
+ * conversation's latest message (slice 3); `draft` is the conversation's
+ * newest proposed or approved draft (slice 4). */
 export interface Thread {
   readonly conversation: {
     readonly id: string;
@@ -135,6 +146,7 @@ export interface Thread {
     readonly lane?: Lane;
     readonly summary: string;
   };
+  readonly draft?: ThreadDraft;
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */

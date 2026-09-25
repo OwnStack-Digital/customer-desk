@@ -1,5 +1,6 @@
 import type { Thread } from "../domain/messaging";
 import type { ConversationRepository } from "../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { MessageRepository } from "../ports/message-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
 
@@ -7,6 +8,7 @@ export interface GetThreadDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
   readonly revisions: ProcessingRevisionRepository;
+  readonly drafts: DraftRevisionRepository;
 }
 
 /**
@@ -40,6 +42,24 @@ export class GetThread {
           latestMessage.id,
         )
       : undefined;
+    // Task 4.5: the newest proposed/approved draft of the conversation,
+    // with the fact ids its body is grounded in.
+    const draft = await this.deps.drafts.findLatestByConversation(
+      organizationId,
+      conversationId,
+    );
+    const threadDraft =
+      draft && (draft.status === "proposed" || draft.status === "approved")
+        ? {
+            revisionId: draft.id,
+            status: draft.status,
+            bodyText: draft.bodyText,
+            assumptions: [...draft.assumptions],
+            ...(draft.factIds.length > 0
+              ? { factIds: [...draft.factIds] }
+              : {}),
+          }
+        : undefined;
     return {
       conversation: {
         id: conversation.id,
@@ -65,6 +85,7 @@ export class GetThread {
             summary: latestRevision.summary ?? "",
           }
         : undefined,
+      draft: threadDraft,
     };
   }
 }
