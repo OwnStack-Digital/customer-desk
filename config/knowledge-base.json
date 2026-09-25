@@ -1,0 +1,25 @@
+{
+  "version": "kb-1",
+  "blocks": [
+    {
+      "id": "kb_hours",
+      "tags": ["hours", "open"],
+      "text": "We clean Monday to Friday, 8am to 5pm, and Saturdays 9am to 1pm."
+    },
+    {
+      "id": "kb_areas",
+      "tags": ["areas", "suburbs", "service area"],
+      "text": "We serve Balmain, Rozelle, Lilyfield, Birchgrove, and Mort Bay."
+    },
+    {
+      "id": "kb_included",
+      "tags": ["included", "what is included"],
+      "text": "Every clean includes vacuuming, mopping, dusting, bathroom and kitchen surfaces, bins emptied, and a final walkthrough check."
+    },
+    {
+      "id": "kb_booking",
+      "tags": ["booking", "how booking works"],
+      "text": "Booking takes two minutes: reply with your suburb and preferred day, we confirm by email, and you pay after the clean is done."
+    }
+  ]
+}

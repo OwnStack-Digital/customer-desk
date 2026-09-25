@@ -1,0 +1,10 @@
+{
+  "id": "org_harbour_pine",
+  "name": "Harbour & Pine Cleaning",
+  "timezone": "Australia/Sydney",
+  "currency": "AUD",
+  "fromAddress": "hello@harbourandpine.example",
+  "quoteValidityDays": 14,
+  "taxMode": "exclusive",
+  "mailboxId": "mbx_harbour_pine"
+}
