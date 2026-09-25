@@ -314,12 +314,12 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 1.
 
-- [ ] **2.1** Migration: `conversations`, `messages`.
-- [ ] **2.2** `ReceiveInboundEmail`: validate DTO, dedupe on `(mailboxId, sourceMessageId)`, thread by `inReplyTo` / `references` against stored RFC ids in that mailbox only, otherwise create a conversation. Never match on subject or sender alone.
-- [ ] **2.3** Commit the message as stored before any classifier call. This slice may leave processing `pending` and skip the classifier.
-- [ ] **2.4** `ListInbox` and `GetThread`. Newest activity first. Text preview only.
-- [ ] **2.5** `POST /inbound/emails` with bearer auth. Duplicate returns the original ids and `duplicate: true`.
-- [ ] **2.6** Inbox UI lists items from the API. Thread page shows inbound text. Empty and error states are visible. Layout is usable at 390px width; no component library.
+- [x] **2.1** Migration: `conversations`, `messages`.
+- [x] **2.2** `ReceiveInboundEmail`: validate DTO, dedupe on `(mailboxId, sourceMessageId)`, thread by `inReplyTo` / `references` against stored RFC ids in that mailbox only, otherwise create a conversation. Never match on subject or sender alone.
+- [x] **2.3** Commit the message as stored before any classifier call. This slice may leave processing `pending` and skip the classifier.
+- [x] **2.4** `ListInbox` and `GetThread`. Newest activity first. Text preview only.
+- [x] **2.5** `POST /inbound/emails` with bearer auth. Duplicate returns the original ids and `duplicate: true`.
+- [x] **2.6** Inbox UI lists items from the API. Thread page shows inbound text. Empty and error states are visible. Layout is usable at 390px width; no component library.
 
 **Acceptance:** fixture pair proves a reply threads and an unrelated same-subject email does not. Replay does not insert a second message. Web has no Drizzle import.
 
