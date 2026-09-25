@@ -44,7 +44,7 @@ The **BOS API is the only production entry point into the core**. It contains th
 - **Email ingress:** receive one normalized inbound email
 - **Public:** quote accept/decline
 
-The web app always calls this API; it does not call use cases directly. For now, tests or an API client supply inbound email and sent mail is recorded in the outbox. Future email connectors use the same ingress and delivery boundaries.
+The web app always calls this API; it does not call use cases directly. For now, tests or an API client supply inbound email; approved outbound messages are recorded and visualized in the outbox. Future email connectors use the same ingress and delivery boundaries.
 
 ---
 
@@ -65,11 +65,12 @@ The web app always calls this API; it does not call use cases directly. For now,
    - Other/noise: store/flag; no commercial invention
 3. Draft status `proposed`
 
-### S3 — Owner decides
-1. Owner reviews on phone-friendly UI → `ReviewDraft` (approve / edit / discard / take over)
-2. Binding send only via `SendApprovedDraft` after approve
-3. Delivery through `EmailDeliveryPort` → **outbox now**, provider later
-4. History retained (message + draft + decision)
+### S3 — Owner decides and sends
+1. Owner reviews on phone-friendly UI → `ReviewDraft` (edit / approve / discard / take over)
+2. `SendApprovedDraft` snapshots the approved draft into a new immutable outbound `Message` linked by `sourceDraftId`
+3. Message and outbox entry are created together; **outbox visualization now**, provider delivery later
+4. Draft remains for audit—it does not become or get replaced by the message
+5. Delivery state belongs to the outbound message/outbox (`queued|sent|failed`) and the full history is retained
 
 ### S4 — Quote outcome
 1. Customer opens accept/decline link → `RecordQuoteDecision`
@@ -97,24 +98,58 @@ sequenceDiagram
   Own->>UI: approve draft
   UI->>API: approve + send
   API->>UC: ReviewDraft / SendApprovedDraft
-  UC->>Ob: enqueue outbound
-  UC->>DB: mark sent + history
+  UC->>DB: snapshot Draft as outbound Message
+  UC->>Ob: enqueue Message for delivery
+  UC->>DB: retain Draft + decision history
 ```
 
 ---
 
 ## Hexagonal shape (lite)
 
-```text
-clients                   primary adapters       application          secondary adapters
-────────                  ────────────────       ───────────          ──────────────────
-BOS web app         →     owner controllers  →  use cases       →    DB repositories
-API client/connector →    ingress controller →  (input ports)   →    file config catalogs
-Customer quote link →     public controller  →                  →    outbox email delivery
-Tests/fixtures       →     test harness       →                  →    LLM classifier/drafter
+```mermaid
+flowchart LR
+  subgraph Clients
+    Web[BOS web app]
+    Connector[API client / email connector]
+    Customer[Customer quote link]
+    Tests[Tests / fixtures]
+  end
 
-                                                domain (few types)
-                                                Draft transitions, pricing pure fns, lane rules
+  subgraph Primary[Primary adapters]
+    OwnerCtl[Owner controllers]
+    IngressCtl[Inbound email controller]
+    PublicCtl[Public controller]
+    Harness[Test harness]
+  end
+
+  subgraph Core[Application core]
+    UC[Use cases / input ports]
+    Domain[Domain rules]
+    Ports[Output ports]
+    UC --> Domain
+    UC --> Ports
+  end
+
+  subgraph Secondary[Secondary adapters]
+    Repos[DB repositories]
+    Config[File config catalogs]
+    Delivery[Outbox email delivery]
+    AI[LLM classifier / drafter]
+  end
+
+  Web --> OwnerCtl
+  Connector --> IngressCtl
+  Customer --> PublicCtl
+  Tests --> Harness
+  OwnerCtl --> UC
+  IngressCtl --> UC
+  PublicCtl --> UC
+  Harness --> UC
+  Repos -.->|implements| Ports
+  Config -.->|implements| Ports
+  Delivery -.->|implements| Ports
+  AI -.->|implements| Ports
 ```
 
 Dependencies point **in**. Domain/application never import HTTP, ORM, filesystem, or vendor SDKs.
@@ -136,8 +171,8 @@ Dependencies point **in**. Domain/application never import HTTP, ORM, filesystem
 ### Domain (minimal)
 | Concept | Why it exists |
 | --- | --- |
-| `Conversation`, `Message` | thread + history |
-| `Draft` (+ status) | approve gate; payload holds quote lines / KB refs / assumptions |
+| `Conversation`, `Message` | thread + immutable inbound/outbound history; outbound message references its source draft |
+| `Draft` (+ status) | editable proposal and approval gate; retained after its content is copied into an outbound message |
 | `Quote` (or draft payload until accept-link needs it) | accept/decline; commercial yes/no |
 | `MessageLane` | routing |
 | Pure `buildQuote(priceList, request)` | **AI never sets price** |
@@ -194,7 +229,7 @@ docs/ARCHITECTURE.md             # this file
 - **Domain:** draft transitions, pricing/assumptions  
 - **Use cases:** in-memory repos + file or stub catalogs + recording outbox (no network)  
 - **Adapters:** file load/map; DB integration as needed  
-- **Golden path:** inbound fixture → classify → draft → approve → outbox row  
+- **Golden path:** inbound fixture → classify → draft → approve → outbound message + outbox row
 
 ---
 
