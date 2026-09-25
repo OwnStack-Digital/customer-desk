@@ -158,12 +158,15 @@ Dependencies point **in**. Domain/application never import HTTP, ORM, filesystem
 `ReceiveInboundEmail` · `ListInbox` · `GetThread` · `ClassifyMessage` · `PrepareDraft` · `ReviewDraft` · `SendApprovedDraft` · `RecordQuoteDecision` · `ListOutbox`
 
 ### Ports (driven)
+
+Naming: **Repository** is used for application-owned resources with identity/lifecycle, regardless of whether the current adapter uses files or a database. Expose only the operations required now; add writes when admin use cases arrive.
+
 | Port | Responsibility | v3 adapter | Later |
 | --- | --- | --- | --- |
 | `ConversationRepository` / `MessageRepository` / `DraftRepository` | operational state | Postgres (or SQLite) | same |
-| `OrganizationDirectory` | org profile | YAML/JSON file | DB |
-| `KnowledgeBaseCatalog` | FAQ facts | YAML/JSON file | DB |
-| `PriceListCatalog` | catalog + inputs for pricing | YAML/JSON file | DB |
+| `OrganizationProfileRepository` | organization profile | YAML/JSON file, read-only | DB, read/write |
+| `KnowledgeBaseRepository` | knowledge facts | YAML/JSON file, read-only | DB, read/write |
+| `PriceListRepository` | catalog + pricing rules | YAML/JSON file, read-only | DB, read/write |
 | `EmailDeliveryPort` | send outbound | Outbox recorder + UI | Gmail/SES/Resend |
 | `ClassifierPort` / `DrafterPort` | intent + wording | LLM or fake | same |
 | `Clock` / `IdGenerator` | time/ids | system | same |
