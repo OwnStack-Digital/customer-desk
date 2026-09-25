@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ConflictError } from "../domain/errors";
 import { COMPLAINT_DRAFT_BODY } from "../domain/drafting";
-import { ConfirmQuoteDecision } from "./confirm-quote-decision";
-import {
-  classificationOf,
-  email,
-  harness,
-  NOW,
-  ORG,
-} from "./testing";
+import { ConflictError } from "../domain/errors";
+import { classificationOf, email, harness, NOW, ORG } from "./testing";
 
 /**
  * Slice 7 acceptance (PLAN.md task 7.3): the operator-side confirmation of
@@ -257,9 +250,9 @@ describe("complaint draft and send (task 7.2)", () => {
     expect(h.outbox.rows).toHaveLength(1);
     expect(h.outbox.rows[0]).toMatchObject({ status: "queued" });
     // The audit trail names the operator email (carried note 14).
-    expect(
-      h.audit.rows.map((row) => `${row.action}:${row.actor}`),
-    ).toContain(`draft.sent:${OPERATOR_EMAIL}`);
+    expect(h.audit.rows.map((row) => `${row.action}:${row.actor}`)).toContain(
+      `draft.sent:${OPERATOR_EMAIL}`,
+    );
   });
 
   it("complaint processing alone never creates an outbox row", async () => {

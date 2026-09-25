@@ -195,8 +195,7 @@ describe("thread lane surfaces over HTTP (slice 7)", () => {
     expect(thread.processing).toMatchObject({ lane: "quote_reply" });
     expect(thread.quoteReply.intent).toBe("accept");
     expect(thread.quoteReply.candidateQuoteVersionIds).toHaveLength(1);
-    const candidate = thread.quoteReply
-      .candidateQuoteVersionIds[0] as string;
+    const candidate = thread.quoteReply.candidateQuoteVersionIds[0] as string;
     expect(thread.openQuote).toMatchObject({
       quoteVersionId: candidate,
       status: "sent",

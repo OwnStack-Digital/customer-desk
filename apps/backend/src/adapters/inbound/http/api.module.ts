@@ -79,6 +79,10 @@ import {
   AuthenticateSession,
   type AuthenticateSessionDeps,
 } from "../../../core/use-cases/authenticate-session";
+import {
+  CONFIRM_QUOTE_DECISION,
+  ConfirmQuoteDecision,
+} from "../../../core/use-cases/confirm-quote-decision";
 import { GET_THREAD, GetThread } from "../../../core/use-cases/get-thread";
 import { LIST_INBOX, ListInbox } from "../../../core/use-cases/list-inbox";
 import { LIST_OUTBOX, ListOutbox } from "../../../core/use-cases/list-outbox";
@@ -102,10 +106,6 @@ import {
   RECORD_QUOTE_DECISION,
   RecordQuoteDecision,
 } from "../../../core/use-cases/record-quote-decision";
-import {
-  CONFIRM_QUOTE_DECISION,
-  ConfirmQuoteDecision,
-} from "../../../core/use-cases/confirm-quote-decision";
 import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
@@ -561,12 +561,7 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         clock: Clock,
       ): ConfirmQuoteDecision =>
         new ConfirmQuoteDecision({ quotes, unitOfWork, ids, clock }),
-      inject: [
-        QUOTE_VERSION_REPOSITORY,
-        UNIT_OF_WORK,
-        ID_GENERATOR,
-        CLOCK,
-      ],
+      inject: [QUOTE_VERSION_REPOSITORY, UNIT_OF_WORK, ID_GENERATOR, CLOCK],
     },
     {
       provide: LIST_OUTBOX,

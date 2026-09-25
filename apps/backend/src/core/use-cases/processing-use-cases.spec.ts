@@ -313,8 +313,9 @@ describe("ProcessInboundMessage", () => {
       // Multiple candidates: even a clear accept needs a human.
       expect(result.processing).toBe("needs_human");
       const revision = h.revisions.rows.at(-1);
-      expect(revision?.classification?.quoteReply?.candidateQuoteVersionIds)
-        .toEqual(["ulid-quote-a", "ulid-quote-b"]);
+      expect(
+        revision?.classification?.quoteReply?.candidateQuoteVersionIds,
+      ).toEqual(["ulid-quote-a", "ulid-quote-b"]);
     }
   });
 
@@ -332,7 +333,9 @@ describe("ProcessInboundMessage", () => {
         email({
           text: "   ",
           html: undefined,
-          attachments: [{ name: "scan.pdf", mime: "application/pdf", size: 10 }],
+          attachments: [
+            { name: "scan.pdf", mime: "application/pdf", size: 10 },
+          ],
         }),
       );
       expect(result.processing).toBe("needs_human");

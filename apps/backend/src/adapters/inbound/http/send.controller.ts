@@ -17,7 +17,11 @@ import {
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
 import { validationError } from "./http-error";
-import { operatorEmailOf, OperatorRequest, SessionGuard } from "./session.guard";
+import {
+  type OperatorRequest,
+  operatorEmailOf,
+  SessionGuard,
+} from "./session.guard";
 
 interface SendBody {
   revisionId?: unknown;

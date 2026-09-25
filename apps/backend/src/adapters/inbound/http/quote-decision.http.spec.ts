@@ -56,7 +56,10 @@ function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 beforeAll(async () => {
-  dbFile = join(mkdtempSync(join(tmpdir(), "bos-quote-decision-http-")), "test.db");
+  dbFile = join(
+    mkdtempSync(join(tmpdir(), "bos-quote-decision-http-")),
+    "test.db",
+  );
   process.env.DB_DIALECT = "sqlite";
   process.env.DATABASE_URL = `file:${dbFile}`;
   process.env.BOS_OWNER_EMAIL = OWNER_EMAIL;
@@ -159,9 +162,13 @@ describe("POST /threads/:conversationId/quote-decision over HTTP", () => {
   it("rejects a malformed body with 422", async () => {
     const cookie = await loginCookie();
     const { conversationId } = await ingestQuote("src-malformed");
-    const missing = await post(cookie, `/threads/${conversationId}/quote-decision`, {
-      decision: "accept",
-    });
+    const missing = await post(
+      cookie,
+      `/threads/${conversationId}/quote-decision`,
+      {
+        decision: "accept",
+      },
+    );
     expect(missing.status).toBe(422);
     const badDecision = await post(
       cookie,
@@ -237,7 +244,10 @@ describe("POST /threads/:conversationId/quote-decision over HTTP", () => {
 
   it("a conflicting decision is 409", async () => {
     const cookie = await loginCookie();
-    const { conversationId, openQuote } = await sentQuote(cookie, "src-conflict");
+    const { conversationId, openQuote } = await sentQuote(
+      cookie,
+      "src-conflict",
+    );
     await post(cookie, `/threads/${conversationId}/quote-decision`, {
       quoteVersionId: openQuote.quoteVersionId,
       decision: "accept",
@@ -286,7 +296,9 @@ describe("POST /threads/:conversationId/quote-decision over HTTP", () => {
     );
     const events = await auditRows();
     const draftActions = events
-      .filter((row) => row.entityId === revisionId || row.revisionId === revisionId)
+      .filter(
+        (row) => row.entityId === revisionId || row.revisionId === revisionId,
+      )
       .map((row) => `${row.action}:${row.actor}`);
     expect(draftActions).toContain(`draft.approved:${OWNER_EMAIL}`);
     expect(draftActions).toContain(`draft.sent:${OWNER_EMAIL}`);

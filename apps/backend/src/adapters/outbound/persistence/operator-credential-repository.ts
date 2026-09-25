@@ -61,9 +61,7 @@ export class DrizzleOperatorCredentialRepository
         ? await this.sqlite()
             .select()
             .from(sqliteOperatorCredentials)
-            .where(
-              eq(sqliteOperatorCredentials.organizationId, organizationId),
-            )
+            .where(eq(sqliteOperatorCredentials.organizationId, organizationId))
         : await this.postgres()
             .select()
             .from(pgOperatorCredentials)

@@ -22,9 +22,7 @@ export interface OperatorRequest {
 }
 
 /** The resolved operator email for the guarded request (never `undefined`). */
-export function operatorEmailOf(
-  request: OperatorRequest,
-): string {
+export function operatorEmailOf(request: OperatorRequest): string {
   const email = request[OPERATOR_EMAIL_KEY];
   if (email === undefined) {
     // Only reachable if a route skipped the guard; fail closed anyway.

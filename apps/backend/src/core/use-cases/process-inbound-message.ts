@@ -1,8 +1,8 @@
 import type { DraftRevision } from "../domain/drafting";
 import {
   buildFaqBody,
-  cleanWording,
   COMPLAINT_DRAFT_BODY,
+  cleanWording,
   compareFactIds,
 } from "../domain/drafting";
 import type { StoredMessage } from "../domain/messaging";
