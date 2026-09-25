@@ -190,6 +190,71 @@ export const pgMessages = pgTable(
 );
 
 /**
+ * Slice 4: draft revisions. `fact_ids` and `assumptions` are JSON columns
+ * (jsonb on Postgres, text JSON on SQLite). `outbound_message_id` is
+ * unique when set: a partial unique index, the slice-5 send constraint.
+ */
+export const pgDraftRevisions = pgTable(
+  "draft_revisions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => pgConversations.id),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => pgMessages.id),
+    status: text("status").notNull(),
+    bodyText: text("body_text").notNull(),
+    factIds: jsonb("fact_ids").$type<string[]>(),
+    knowledgeBaseVersion: text("knowledge_base_version"),
+    assumptions: jsonb("assumptions").$type<string[]>(),
+    outboundMessageId: text("outbound_message_id"),
+    quoteVersionId: text("quote_version_id"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    pgUniqueIndex("draft_revisions_outbound_message_unique")
+      .on(table.outboundMessageId)
+      .where(sql`outbound_message_id is not null`),
+    pgIndex("draft_revisions_conversation_idx").on(table.conversationId),
+    pgIndex("draft_revisions_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const sqliteDraftRevisions = sqliteTable(
+  "draft_revisions",
+  {
+    id: sqliteText("id").primaryKey(),
+    organizationId: sqliteText("organization_id").notNull(),
+    conversationId: sqliteText("conversation_id")
+      .notNull()
+      .references(() => sqliteConversations.id),
+    messageId: sqliteText("message_id")
+      .notNull()
+      .references(() => sqliteMessages.id),
+    status: sqliteText("status").notNull(),
+    bodyText: sqliteText("body_text").notNull(),
+    factIds: sqliteText("fact_ids"),
+    knowledgeBaseVersion: sqliteText("knowledge_base_version"),
+    assumptions: sqliteText("assumptions"),
+    outboundMessageId: sqliteText("outbound_message_id"),
+    quoteVersionId: sqliteText("quote_version_id"),
+    createdAt: sqliteText("created_at").notNull(),
+    updatedAt: sqliteText("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("draft_revisions_outbound_message_unique")
+      .on(table.outboundMessageId)
+      .where(sql`outbound_message_id is not null`),
+    index("draft_revisions_conversation_idx").on(table.conversationId),
+    index("draft_revisions_organization_idx").on(table.organizationId),
+  ],
+);
+
+/**
  * Slice 3: processing revisions. `classification` is the full
  * Classification artifact (jsonb on Postgres, text JSON on SQLite).
  */

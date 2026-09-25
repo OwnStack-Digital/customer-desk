@@ -3,11 +3,13 @@ import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core"
 import { describe, expect, it } from "vitest";
 import {
   pgConversations,
+  pgDraftRevisions,
   pgMessages,
   pgOperatorCredentials,
   pgOperatorSessions,
   pgProcessingRevisions,
   sqliteConversations,
+  sqliteDraftRevisions,
   sqliteMessages,
   sqliteOperatorCredentials,
   sqliteOperatorSessions,
@@ -92,6 +94,12 @@ describe("pg/sqlite schema parity", () => {
   it("processing_revisions matches", () => {
     expect(sqliteShape(sqliteProcessingRevisions)).toEqual(
       pgShape(pgProcessingRevisions),
+    );
+  });
+
+  it("draft_revisions matches", () => {
+    expect(sqliteShape(sqliteDraftRevisions)).toEqual(
+      pgShape(pgDraftRevisions),
     );
   });
 });

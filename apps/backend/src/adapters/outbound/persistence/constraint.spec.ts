@@ -9,7 +9,11 @@ import {
   type PersistenceClient,
   type SqliteDb,
 } from "./client";
-import { sqliteConversations, sqliteMessages } from "./schema";
+import {
+  sqliteConversations,
+  sqliteDraftRevisions,
+  sqliteMessages,
+} from "./schema";
 
 // src/adapters/outbound/persistence -> apps/backend/drizzle/migrations/sqlite.
 const MIGRATIONS = join(
@@ -126,5 +130,70 @@ describe("messages inbound dedupe constraint (SQLite)", () => {
   it("exposes the same client via the PERSISTENCE_CLIENT token contract", () => {
     // The DI token is a string constant consumed by the Nest providers.
     expect(PERSISTENCE_CLIENT).toBe("BOS_PERSISTENCE_CLIENT");
+  });
+});
+
+describe("draft_revisions outbound_message_id constraint (SQLite)", () => {
+  it("the partial unique index fires on a second non-null value and tolerates nulls", () => {
+    const db = client.open() as SqliteDb;
+    db.insert(sqliteConversations)
+      .values(conversationRow({ id: "conv-draft" }))
+      .run();
+    db.insert(sqliteMessages)
+      .values(
+        messageRow({
+          id: "msg-draft",
+          conversationId: "conv-draft",
+          sourceMessageId: "src-draft",
+        }),
+      )
+      .run();
+
+    const draftRow = (overrides: Record<string, unknown> = {}) => ({
+      id: "draft-1",
+      organizationId: "org_harbour_pine",
+      conversationId: "conv-draft",
+      messageId: "msg-draft",
+      status: "proposed",
+      bodyText: "Hi,\n\nWe clean Mon to Fri.\n\nThanks,",
+      factIds: JSON.stringify(["kb_hours"]),
+      knowledgeBaseVersion: "kb-1",
+      assumptions: JSON.stringify([]),
+      outboundMessageId: null,
+      quoteVersionId: null,
+      createdAt: "2025-06-01T00:00:00.000Z",
+      updatedAt: "2025-06-01T00:00:00.000Z",
+      ...overrides,
+    });
+
+    // Two unbound proposed drafts may both have a null outbound message.
+    db.insert(sqliteDraftRevisions).values(draftRow()).run();
+    expect(() =>
+      db
+        .insert(sqliteDraftRevisions)
+        .values(draftRow({ id: "draft-2" }))
+        .run(),
+    ).not.toThrow();
+
+    // The first draft bound to an outbound message wins; a second draft
+    // claiming the same outbound message hits the partial unique index
+    // (the slice-5 send constraint).
+    db.insert(sqliteDraftRevisions)
+      .values(draftRow({ id: "draft-3", outboundMessageId: "msg-out-1" }))
+      .run();
+    expect(() =>
+      db
+        .insert(sqliteDraftRevisions)
+        .values(draftRow({ id: "draft-4", outboundMessageId: "msg-out-1" }))
+        .run(),
+    ).toThrow(/UNIQUE constraint failed: draft_revisions\.outbound_message_id/);
+
+    // A different outbound message is of course fine.
+    expect(() =>
+      db
+        .insert(sqliteDraftRevisions)
+        .values(draftRow({ id: "draft-5", outboundMessageId: "msg-out-2" }))
+        .run(),
+    ).not.toThrow();
   });
 });
