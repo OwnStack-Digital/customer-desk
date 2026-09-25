@@ -379,4 +379,4 @@ Config admin UI · automatic acknowledgements · attachment extraction/OCR · fu
 
 ---
 
-*Change this document with the system; do not create a parallel architecture source of truth.*
+*Change this document with the system; do not create a parallel architecture source of truth. Executable slices live in [`PLAN.md`](./PLAN.md).*

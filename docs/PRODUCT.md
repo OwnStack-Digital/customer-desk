@@ -124,4 +124,4 @@ A real cleaning or trades business can:
 
 ---
 
-*This file is the product. Prefer changing this page over growing a doc set.*
+*This file is the product. Prefer changing this page over growing a doc set. Implementation slices: [`PLAN.md`](./PLAN.md).*

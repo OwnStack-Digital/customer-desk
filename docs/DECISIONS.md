@@ -250,7 +250,7 @@ Must-have constraints:
 - Quote tokens stored **hashed**  
 - Money as integer minor units  
 
-IDs: string ULIDs (or UUIDs) allocated via `IdGenerator` port.
+IDs: string **ULIDs** allocated via `IdGenerator` port (not database defaults).
 
 ---
 
@@ -275,7 +275,7 @@ One fictional cleaner/trades sample set ships with the demonstrator.
 | Monorepo | Bun workspaces (`apps/*`) |
 | API test | Nest testing + use-case tests with in-memory/fake ports |
 | Web | Next.js App Router; Playwright later for golden UI path (not required on day one) |
-| Lint/format | Biome or ESLint+Prettier — pick at scaffold; one toolchain only |
+| Lint/format | **Biome** only |
 | Local DB | Docker Compose PostgreSQL (primary); SQLite optional for tests/dev |
 | CI (when added) | install, typecheck, unit/use-case tests; SQLite and/or Postgres migrate + API contract tests |
 
@@ -297,22 +297,24 @@ Shared package policy (demonstrator): **avoid** early `packages/domain` extracti
 
 ---
 
-## 13. Open items (small; freeze in first plan)
+## 13. Frozen in the first plan
 
-1. Exact session store (DB table vs signed cookie)  
-2. Password hashing scheme (e.g. Argon2id) and seed user source  
-3. ULID vs UUID  
-4. Biome vs ESLint/Prettier  
-5. Whether Server Actions call BOS API over `localhost` HTTP or a tighter in-network URL only  
-6. First LLM vendor when fakes are replaced (does not affect ports)
+These were the open items. They are decided in [`PLAN.md`](./PLAN.md); do not re-litigate them inside a slice.
 
-None of these block scaffolding `apps/backend` + `apps/web` + Drizzle + sample config.
+| Item | Frozen choice |
+| --- | --- |
+| Session store | Opaque session id in an HTTP-only cookie; **hash stored in `operator_sessions`**. Not a signed-cookie-only session. |
+| Password | **Argon2id** (OWASP parameters). Seed owner from env on boot if no operator row exists. |
+| IDs | **ULID** strings from `IdGenerator`. |
+| Lint/format | **Biome** only. |
+| Web → API | Server-side HTTP to `BOS_API_URL` only. No in-process core import. |
+| LLM vendor | **None in the demonstrator.** Fakes only. Record a vendor here when fakes are replaced. |
 
 ---
 
 ## 14. Implementation readiness gate
 
-Planning/implementation may start when this file is accepted and the first plan includes:
+This file is accepted for planning. The first plan is [`PLAN.md`](./PLAN.md). Implementation starts at slice 0 and must include, before any later slice:
 
 1. Scaffold monorepo (Bun workspaces, Nest backend, Next web, Drizzle, Compose Postgres; SQLite test path optional)  
 2. Auth session + one protected owner route  
@@ -320,7 +322,7 @@ Planning/implementation may start when this file is accepted and the first plan 
 4. Fake `ProcessInboundMessage` path  
 5. Next owner inbox via Server Action/`bos-api` (no direct DB)  
 
-Vertical slices after that follow `ARCHITECTURE.md` build order.
+Vertical slices after that follow `ARCHITECTURE.md` build order, sequenced in `PLAN.md`.
 
 ---
 
