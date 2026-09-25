@@ -613,6 +613,9 @@ describe("fact-id order (carried note 11)", () => {
       classifier: h.classifier,
       drafter: h.drafter,
       knowledgeBase: { getKnowledgeBase: () => mixedCaseBase },
+      priceList: h.priceList,
+      profile: h.profile,
+      quotes: h.quotes,
       ids: new SequentialIds(),
       clock: new FixedClock(),
     });

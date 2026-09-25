@@ -121,18 +121,24 @@ export interface ThreadMessage {
 }
 
 /** Draft section of the thread response (PLAN.md task 4.5). `factIds`
- * lists the knowledge blocks the proposed FAQ body is grounded in. */
+ * lists the knowledge blocks the proposed FAQ body is grounded in.
+ * `totalMinor`/`currency` appear only on a quote-linked draft (slice 6);
+ * they come from the immutable quote snapshot, never the current price
+ * list. */
 export interface ThreadDraft {
   readonly revisionId: string;
   readonly status: "proposed" | "approved";
   readonly bodyText: string;
   readonly assumptions: readonly string[];
   readonly factIds?: readonly string[];
+  readonly totalMinor?: number;
+  readonly currency?: string;
 }
 
 /** Thread JSON shape. `processing` is the latest revision of the
  * conversation's latest message (slice 3); `draft` is the conversation's
- * newest proposed or approved draft (slice 4). */
+ * newest proposed or approved draft (slice 4); `openQuote` is the
+ * conversation's open quote version (slice 6). */
 export interface Thread {
   readonly conversation: {
     readonly id: string;
@@ -147,6 +153,13 @@ export interface Thread {
     readonly summary: string;
   };
   readonly draft?: ThreadDraft;
+  /** The conversation's newest `prepared`/`sent` quote version, if any. */
+  readonly openQuote?: {
+    readonly quoteVersionId: string;
+    readonly status: string;
+    readonly totalMinor: number;
+    readonly currency: string;
+  };
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */

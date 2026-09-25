@@ -270,27 +270,27 @@ describe("buildQuote (task 6.1)", () => {
   });
 
   it("a computed snapshot is not altered by later changes to the price list", () => {
-    const mutable = list({
-      rules: [
-        {
-          id: "oven_clean",
-          kind: "fixed",
-          label: "Oven clean",
-          amountMinor: 6500,
-          aliases: ["oven"],
-        },
-      ],
-    });
+    // A local mutable copy of the catalog: the test mutates it after
+    // computing, proving the snapshot holds by value, never by reference
+    // into the config (price lists are frozen at boot, but the guarantee
+    // must hold regardless).
+    const rules = [
+      {
+        id: "oven_clean",
+        kind: "fixed" as const,
+        label: "Oven Clean",
+        amountMinor: 6500,
+        aliases: ["oven"],
+      },
+    ];
+    const mutable = list({ rules });
     const quote = priceable(price(mutable, [{ label: "oven" }]));
-    // Mutate the *input* after computing: the snapshot holds by value,
-    // never by reference into the config (price lists are frozen at boot,
-    // but the guarantee must hold regardless).
-    const first = mutable.rules[0];
-    if (first) {
-      first.amountMinor = 1;
+    const [rule] = rules;
+    if (rule) {
+      rule.amountMinor = 1;
     }
-    mutable.currency = "USD";
-    mutable.version = "pl-2";
+    (mutable as { currency: string }).currency = "USD";
+    (mutable as { version: string }).version = "pl-2";
     expect(quote.lines[0]).toMatchObject({ amountMinor: 6500 });
     expect(quote.subtotalMinor).toBe(6500);
     expect(quote.totalMinor).toBe(7150);

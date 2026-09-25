@@ -88,7 +88,6 @@ describe("FAQ drafts (task 4.2)", () => {
 
   it("no drafts for the non-FAQ lanes", async () => {
     for (const lane of [
-      "quote",
       "complaint",
       "service",
       "quote_reply",
@@ -216,6 +215,9 @@ describe("retry hardening (carried note 10)", () => {
       classifier: h.classifier,
       drafter: h.drafter,
       knowledgeBase: h.knowledgeBase,
+      priceList: h.priceList,
+      profile: h.profile,
+      quotes: h.quotes,
       ids: new SequentialIds(),
       clock: new FixedClock(),
     });
@@ -241,8 +243,13 @@ describe("retry hardening (carried note 10)", () => {
     });
     const result = await retry.run(ORG, received.messageId);
     expect(result?.status).toBe("ready");
-    // The retry appended a second revision and a draft, not a 500.
+    // The retry appended a second revision and a draft, not a 500. The
+    // initial quote draft (slice 6) is superseded by the retry's machine
+    // FAQ draft; exactly one proposed draft remains.
     expect(h.revisions.rows.map((row) => row.revisionNumber)).toEqual([1, 2]);
-    expect(h.drafts.rows).toHaveLength(1);
+    expect(
+      h.drafts.rows.filter((row) => row.status === "proposed"),
+    ).toHaveLength(1);
+    expect(h.drafts.rows.some((row) => row.status === "superseded")).toBe(true);
   });
 });

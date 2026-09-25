@@ -3,7 +3,11 @@
  * specs. Fakes only: no database, no adapters, no framework imports
  * (docs/ARCHITECTURE.md "Use cases: fakes/in-memory adapters; no network").
  */
-import type { KnowledgeBase, OrganizationProfile } from "../domain/config";
+import type {
+  KnowledgeBase,
+  OrganizationProfile,
+  PriceList,
+} from "../domain/config";
 import type { DraftRevision } from "../domain/drafting";
 import type {
   Conversation,
@@ -18,6 +22,7 @@ import type {
   ProcessingRevision,
 } from "../domain/processing";
 import { ClassifierError } from "../domain/processing";
+import type { QuoteDecision, QuoteVersion } from "../domain/quote";
 import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
@@ -29,7 +34,11 @@ import type { KnowledgeBaseRepository } from "../ports/knowledge-base-repository
 import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
 import type { OutboxRepository } from "../ports/outbox-repository";
+import type { PriceListRepository } from "../ports/price-list-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
+import type { TokenGenerator } from "../ports/token-generator";
+import type { TokenHasher } from "../ports/token-hasher";
 import type {
   TransactionScopedRepositories,
   UnitOfWork,
@@ -39,6 +48,7 @@ import { ListInbox } from "./list-inbox";
 import { ListOutbox } from "./list-outbox";
 import { ProcessInboundMessage } from "./process-inbound-message";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
+import { GetPublicQuote, RecordQuoteDecision } from "./record-quote-decision";
 import { ReviewDraft } from "./review-draft";
 import { SendApprovedDraft } from "./send-approved-draft";
 import { TakeOverConversation } from "./take-over-conversation";
@@ -84,7 +94,17 @@ export function classificationOf(
     case "noise":
       return { lane, confidence, summary: "Automated or non-human mail" };
     default:
-      return { lane, confidence, summary: "Quote request" };
+      return {
+        lane,
+        confidence,
+        // The standard fixture ("how much for an oven clean?") prices as
+        // the fixed oven rule — the default quote classification stays
+        // priceable, so the slice-3 "quote -> ready" behavior holds.
+        quoteRequest: {
+          lines: [{ ruleId: "oven_clean", label: "Oven clean" }],
+        },
+        summary: "Quote request",
+      };
   }
 }
 
@@ -127,6 +147,189 @@ export const KNOWLEDGE_BASE: KnowledgeBase = {
 export class FakeKnowledgeBase implements KnowledgeBaseRepository {
   getKnowledgeBase(): KnowledgeBase {
     return KNOWLEDGE_BASE;
+  }
+}
+
+/** Test price list mirroring config/price-list.json (Harbour & Pine). */
+export const PRICE_LIST: PriceList = {
+  version: "pl-1",
+  currency: "AUD",
+  taxMode: "exclusive",
+  taxRateBps: 1000,
+  rules: [
+    {
+      id: "regular_clean",
+      kind: "per_unit",
+      label: "Regular clean",
+      unit: "bedroom",
+      amountMinor: 4500,
+      minimumChargeMinor: 9000,
+      aliases: ["clean", "regular clean"],
+    },
+    {
+      id: "oven_clean",
+      kind: "fixed",
+      label: "Oven clean",
+      amountMinor: 6500,
+      aliases: ["oven"],
+    },
+  ],
+};
+
+export class FakePriceList implements PriceListRepository {
+  constructor(private readonly priceList: PriceList = PRICE_LIST) {}
+  getPriceList(): PriceList {
+    return this.priceList;
+  }
+}
+
+/** In-memory quote-version store for the slice-6 use-case specs. */
+export class FakeQuoteVersions implements QuoteVersionRepository {
+  readonly rows: QuoteVersion[] = [];
+
+  insertQuoteVersion(quote: QuoteVersion): Promise<void> {
+    this.rows.push({ ...quote });
+    return Promise.resolve();
+  }
+
+  findById(
+    organizationId: string,
+    quoteVersionId: string,
+  ): Promise<QuoteVersion | undefined> {
+    return Promise.resolve(
+      this.rows.find(
+        (row) =>
+          row.organizationId === organizationId && row.id === quoteVersionId,
+      ),
+    );
+  }
+
+  findByTokenHash(
+    organizationId: string,
+    tokenHash: string,
+  ): Promise<QuoteVersion | undefined> {
+    return Promise.resolve(
+      this.rows.find(
+        (row) =>
+          row.organizationId === organizationId && row.tokenHash === tokenHash,
+      ),
+    );
+  }
+
+  findLatestOpenByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<QuoteVersion | undefined> {
+    const open = this.rows.filter(
+      (row) =>
+        row.organizationId === organizationId &&
+        row.conversationId === conversationId &&
+        (row.status === "prepared" || row.status === "sent"),
+    );
+    return Promise.resolve(
+      open
+        .sort(
+          (left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.id.localeCompare(right.id),
+        )
+        .at(-1),
+    );
+  }
+
+  markSent(
+    organizationId: string,
+    quoteVersionId: string,
+    fields: {
+      tokenHash: string;
+      sentAt: string;
+      validUntil: string;
+      updatedAt: string;
+    },
+  ): Promise<boolean> {
+    const row = this.row(organizationId, quoteVersionId);
+    if (row.status !== "prepared") {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, {
+      status: "sent" as const,
+      tokenHash: fields.tokenHash,
+      sentAt: fields.sentAt,
+      validUntil: fields.validUntil,
+      updatedAt: fields.updatedAt,
+    });
+    return Promise.resolve(true);
+  }
+
+  supersedeSentExcept(
+    organizationId: string,
+    conversationId: string,
+    keepQuoteVersionId: string,
+    updatedAt: string,
+  ): Promise<number> {
+    let count = 0;
+    for (const row of this.rows) {
+      if (
+        row.organizationId === organizationId &&
+        row.conversationId === conversationId &&
+        row.status === "sent" &&
+        row.id !== keepQuoteVersionId
+      ) {
+        Object.assign(row, { status: "superseded" as const, updatedAt });
+        count += 1;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  decide(
+    organizationId: string,
+    quoteVersionId: string,
+    decision: QuoteDecision,
+    decidedAt: string,
+  ): Promise<boolean> {
+    const row = this.row(organizationId, quoteVersionId);
+    if (row.status !== "sent") {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, {
+      status: decision === "accept" ? "accepted" : "declined",
+      decision,
+      decidedAt,
+    });
+    return Promise.resolve(true);
+  }
+
+  private row(organizationId: string, quoteVersionId: string): QuoteVersion {
+    const row = this.rows.find(
+      (candidate) =>
+        candidate.organizationId === organizationId &&
+        candidate.id === quoteVersionId,
+    );
+    if (!row) {
+      throw new Error(`no quote version ${quoteVersionId}`);
+    }
+    return row;
+  }
+}
+
+/** Deterministic quote-token double; every generated token is recorded. */
+export class FakeTokens implements TokenGenerator {
+  readonly tokens: string[] = [];
+  private seq = 0;
+
+  nextToken(): string {
+    this.seq += 1;
+    const token = `quote-token-${this.seq}`;
+    this.tokens.push(token);
+    return token;
+  }
+}
+
+/** Deterministic hasher for tests: the raw value is directly visible. */
+export class FakeTokenHasher implements TokenHasher {
+  hash(token: string): string {
+    return `hash(${token})`;
   }
 }
 
@@ -526,6 +729,8 @@ export function harness() {
   // Default classification: the "how much" fixture reads as a quote.
   const classifier = new ScriptedClassifier(classificationOf("quote"));
   const knowledgeBase = new FakeKnowledgeBase();
+  const priceList = new FakePriceList();
+  const quotes = new FakeQuoteVersions();
   const processing = new ProcessInboundMessage({
     messages,
     conversations,
@@ -534,6 +739,9 @@ export function harness() {
     classifier,
     drafter,
     knowledgeBase,
+    priceList,
+    profile,
+    quotes,
     ids,
     clock,
   });
@@ -552,18 +760,26 @@ export function harness() {
     messages,
     revisions,
     drafts,
+    quotes,
   });
   const unitOfWork = new FakeUnitOfWork({
     messages,
     drafts,
     outbox,
     audit,
+    quotes,
   });
+  const tokens = new FakeTokens();
+  const tokenHasher = new FakeTokenHasher();
   const sendDraft = new SendApprovedDraft({
     conversations,
     drafts,
     profile,
     unitOfWork,
+    quotes,
+    tokens,
+    tokenHasher,
+    publicAppUrl: "https://app.example.test",
     ids,
     clock,
   });
@@ -580,6 +796,20 @@ export function harness() {
     clock,
   });
   const listOutbox = new ListOutbox(outbox);
+  const getPublicQuote = new GetPublicQuote({
+    quotes,
+    tokenHasher,
+    profile,
+    clock,
+  });
+  const recordQuoteDecision = new RecordQuoteDecision({
+    quotes,
+    tokenHasher,
+    profile,
+    clock,
+    unitOfWork,
+    ids,
+  });
   return {
     conversations,
     messages,
@@ -590,6 +820,13 @@ export function harness() {
     audit,
     classifier,
     knowledgeBase,
+    profile,
+    priceList,
+    quotes,
+    tokens,
+    tokenHasher,
+    getPublicQuote,
+    recordQuoteDecision,
     processing,
     receive,
     listInbox,

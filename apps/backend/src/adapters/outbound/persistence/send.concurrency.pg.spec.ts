@@ -1,16 +1,19 @@
 import { join } from "node:path";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { OrganizationProfile } from "../../../core/domain/config";
 import type { Clock } from "../../../core/ports/clock";
 import type { IdGenerator } from "../../../core/ports/id-generator";
 import type { OrganizationProfileRepository } from "../../../core/ports/organization-profile-repository";
 import { SendApprovedDraft } from "../../../core/use-cases/send-approved-draft";
+import { RandomTokenGenerator } from "../security/random-token-generator";
+import { Sha256TokenHasher } from "../security/sha256-token-hasher";
 import type { PostgresDb } from "./client";
 import { createPersistenceClient } from "./client";
 import { DrizzleConversationRepository } from "./conversation-repository";
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
+import { DrizzleQuoteVersionRepository } from "./quote-version-repository";
 import { DrizzleUnitOfWork } from "./unit-of-work";
 
 /**
@@ -70,24 +73,43 @@ const PROFILE_REPO: OrganizationProfileRepository = {
   getProfile: () => PROFILE,
 };
 
-/** A scratch database per run so the spec never dirties a shared DB. */
-async function scratchDatabaseUrl(base: string): Promise<string> {
+/** Scratch database per run so the spec never dirties a shared DB
+ * (created in beforeAll, dropped in afterAll — carried note 16). */
+let scratchName: string | undefined;
+let scratchUrl: string | undefined;
+
+beforeAll(async () => {
+  const base = TEST_DATABASE_URL;
+  if (!base) {
+    return;
+  }
   const sql = postgres(base, { max: 1 });
-  const name = `bos_send_pg_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-  await sql.unsafe(`CREATE DATABASE "${name}"`);
+  scratchName = `bos_send_pg_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  await sql.unsafe(`CREATE DATABASE "${scratchName}"`);
   await sql.end();
-  return base.replace(/\/[^/]+$/, `/${name}`);
-}
+  scratchUrl = base.replace(/\/[^/]+$/, `/${scratchName}`);
+});
+
+afterAll(async () => {
+  // Carried note 16: the scratch database is always dropped again.
+  const base = TEST_DATABASE_URL;
+  if (!base || !scratchName) {
+    return;
+  }
+  const sql = postgres(base, { max: 1 });
+  await sql.unsafe(`DROP DATABASE "${scratchName}"`);
+  await sql.end();
+});
 
 describe("concurrent send of one approved revision (Postgres)", () => {
   it("two simultaneous sends create one message, one outbox row, same id", async (context) => {
-    if (!TEST_DATABASE_URL) {
+    if (!TEST_DATABASE_URL || !scratchUrl) {
       context.skip(
         "TEST_DATABASE_URL is not set; run `bun run test:pg` to exercise this spec",
       );
       return;
     }
-    const databaseUrl = await scratchDatabaseUrl(TEST_DATABASE_URL as string);
+    const databaseUrl = scratchUrl;
     process.env.DB_DIALECT = "postgres";
     process.env.DATABASE_URL = databaseUrl;
     const client = createPersistenceClient();
@@ -117,6 +139,10 @@ describe("concurrent send of one approved revision (Postgres)", () => {
         drafts,
         profile: PROFILE_REPO,
         unitOfWork: new DrizzleUnitOfWork(client),
+        quotes: new DrizzleQuoteVersionRepository(client),
+        tokens: new RandomTokenGenerator(),
+        tokenHasher: new Sha256TokenHasher(),
+        publicAppUrl: "https://app.example.test",
         ids: new SequentialIds(ulid()),
         clock: new FixedClock(),
       });

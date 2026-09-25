@@ -3,6 +3,8 @@ import { CLASSIFIER_PORT } from "../../../core/ports/classifier";
 import { DRAFTER_PORT } from "../../../core/ports/drafter";
 import type { KnowledgeBaseRepository } from "../../../core/ports/knowledge-base-repository";
 import { KNOWLEDGE_BASE_REPOSITORY } from "../../../core/ports/knowledge-base-repository";
+import type { PriceListRepository } from "../../../core/ports/price-list-repository";
+import { PRICE_LIST_REPOSITORY } from "../../../core/ports/price-list-repository";
 import { ConfigModule } from "../config-files/config.module";
 import { FakeClassifier } from "./fake-classifier";
 import { FakeDrafter } from "./fake-drafter";
@@ -28,11 +30,14 @@ export function assertFakeAdapter(
   providers: [
     {
       provide: CLASSIFIER_PORT,
-      useFactory: (knowledgeBase: KnowledgeBaseRepository): FakeClassifier => {
+      useFactory: (
+        knowledgeBase: KnowledgeBaseRepository,
+        priceList: PriceListRepository,
+      ): FakeClassifier => {
         assertFakeAdapter(process.env.AI_ADAPTER);
-        return new FakeClassifier(knowledgeBase);
+        return new FakeClassifier(knowledgeBase, priceList);
       },
-      inject: [KNOWLEDGE_BASE_REPOSITORY],
+      inject: [KNOWLEDGE_BASE_REPOSITORY, PRICE_LIST_REPOSITORY],
     },
     {
       provide: DRAFTER_PORT,

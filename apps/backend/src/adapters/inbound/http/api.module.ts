@@ -47,13 +47,25 @@ import {
   type PasswordHasher,
 } from "../../../core/ports/password-hasher";
 import {
+  PRICE_LIST_REPOSITORY,
+  type PriceListRepository,
+} from "../../../core/ports/price-list-repository";
+import {
   PROCESSING_REVISION_REPOSITORY,
   type ProcessingRevisionRepository,
 } from "../../../core/ports/processing-revision-repository";
 import {
+  QUOTE_VERSION_REPOSITORY,
+  type QuoteVersionRepository,
+} from "../../../core/ports/quote-version-repository";
+import {
   SESSION_REPOSITORY,
   type SessionRepository,
 } from "../../../core/ports/session-repository";
+import {
+  TOKEN_GENERATOR,
+  type TokenGenerator,
+} from "../../../core/ports/token-generator";
 import {
   TOKEN_HASHER,
   type TokenHasher,
@@ -84,6 +96,12 @@ import {
   RECEIVE_INBOUND_EMAIL,
   ReceiveInboundEmail,
 } from "../../../core/use-cases/receive-inbound-email";
+import {
+  GET_PUBLIC_QUOTE,
+  GetPublicQuote,
+  RECORD_QUOTE_DECISION,
+  RecordQuoteDecision,
+} from "../../../core/use-cases/record-quote-decision";
 import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
@@ -120,6 +138,7 @@ import { DrizzleOperatorCredentialRepository } from "../../outbound/persistence/
 import { DrizzleOutboxRepository } from "../../outbound/persistence/outbox-repository";
 import { PersistenceModule } from "../../outbound/persistence/persistence.module";
 import { DrizzleProcessingRevisionRepository } from "../../outbound/persistence/processing-revision-repository";
+import { DrizzleQuoteVersionRepository } from "../../outbound/persistence/quote-version-repository";
 import { DrizzleSessionRepository } from "../../outbound/persistence/session-repository";
 import { DrizzleUnitOfWork } from "../../outbound/persistence/unit-of-work";
 import { Argon2PasswordHasher } from "../../outbound/security/argon2-password-hasher";
@@ -127,6 +146,7 @@ import {
   INGRESS_KEY_COMPARER,
   TimingSafeIngressKeyComparer,
 } from "../../outbound/security/ingress-key-comparer";
+import { RandomTokenGenerator } from "../../outbound/security/random-token-generator";
 import { Sha256TokenHasher } from "../../outbound/security/sha256-token-hasher";
 import { SystemClock } from "../../outbound/security/system-clock";
 import { UlidGenerator } from "../../outbound/security/ulid-id-generator";
@@ -139,6 +159,7 @@ import { IngressController } from "./ingress.controller";
 import { IngressGuard } from "./ingress.guard";
 import { MessagesController } from "./messages.controller";
 import { OutboxController } from "./outbox.controller";
+import { PublicQuotesController } from "./public-quotes.controller";
 import { SendController } from "./send.controller";
 import { SessionGuard } from "./session.guard";
 
@@ -156,11 +177,13 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
     DraftsController,
     SendController,
     OutboxController,
+    PublicQuotesController,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ErrorBodyFilter },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOKEN_HASHER, useClass: Sha256TokenHasher },
+    { provide: TOKEN_GENERATOR, useClass: RandomTokenGenerator },
     { provide: ID_GENERATOR, useClass: UlidGenerator },
     { provide: CLOCK, useClass: SystemClock },
     {
@@ -209,6 +232,12 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       provide: AUDIT_EVENT_REPOSITORY,
       useFactory: (client: PersistenceClient) =>
         new DrizzleAuditEventRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: QUOTE_VERSION_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleQuoteVersionRepository(client),
       inject: [PERSISTENCE_CLIENT],
     },
     {
@@ -296,6 +325,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         classifier: ClassifierPort,
         drafter: DrafterPort,
         knowledgeBase: KnowledgeBaseRepository,
+        priceList: PriceListRepository,
+        profile: OrganizationProfileRepository,
+        quotes: QuoteVersionRepository,
         ids: IdGenerator,
         clock: Clock,
       ): ProcessInboundMessage =>
@@ -307,6 +339,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
           classifier,
           drafter,
           knowledgeBase,
+          priceList,
+          profile,
+          quotes,
           ids,
           clock,
         }),
@@ -318,6 +353,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         CLASSIFIER_PORT,
         DRAFTER_PORT,
         KNOWLEDGE_BASE_REPOSITORY,
+        PRICE_LIST_REPOSITORY,
+        ORGANIZATION_PROFILE_REPOSITORY,
+        QUOTE_VERSION_REPOSITORY,
         ID_GENERATOR,
         CLOCK,
       ],
@@ -386,13 +424,15 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         messages: MessageRepository,
         revisions: ProcessingRevisionRepository,
         drafts: DraftRevisionRepository,
+        quotes: QuoteVersionRepository,
       ): GetThread =>
-        new GetThread({ conversations, messages, revisions, drafts }),
+        new GetThread({ conversations, messages, revisions, drafts, quotes }),
       inject: [
         CONVERSATION_REPOSITORY,
         MESSAGE_REPOSITORY,
         PROCESSING_REVISION_REPOSITORY,
         DRAFT_REVISION_REPOSITORY,
+        QUOTE_VERSION_REPOSITORY,
       ],
     },
     {
@@ -433,6 +473,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         drafts: DraftRevisionRepository,
         profile: OrganizationProfileRepository,
         unitOfWork: UnitOfWork,
+        quotes: QuoteVersionRepository,
+        tokens: TokenGenerator,
+        tokenHasher: TokenHasher,
         ids: IdGenerator,
         clock: Clock,
       ): SendApprovedDraft =>
@@ -441,6 +484,12 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
           drafts,
           profile,
           unitOfWork,
+          quotes,
+          tokens,
+          tokenHasher,
+          // No default in production (PLAN.md): sending a quote draft
+          // fails closed when PUBLIC_APP_URL is unset.
+          publicAppUrl: process.env.PUBLIC_APP_URL,
           ids,
           clock,
         }),
@@ -449,8 +498,54 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         DRAFT_REVISION_REPOSITORY,
         ORGANIZATION_PROFILE_REPOSITORY,
         UNIT_OF_WORK,
+        QUOTE_VERSION_REPOSITORY,
+        TOKEN_GENERATOR,
+        TOKEN_HASHER,
         ID_GENERATOR,
         CLOCK,
+      ],
+    },
+    {
+      provide: GET_PUBLIC_QUOTE,
+      useFactory: (
+        quotes: QuoteVersionRepository,
+        tokenHasher: TokenHasher,
+        profile: OrganizationProfileRepository,
+        clock: Clock,
+      ): GetPublicQuote =>
+        new GetPublicQuote({ quotes, tokenHasher, profile, clock }),
+      inject: [
+        QUOTE_VERSION_REPOSITORY,
+        TOKEN_HASHER,
+        ORGANIZATION_PROFILE_REPOSITORY,
+        CLOCK,
+      ],
+    },
+    {
+      provide: RECORD_QUOTE_DECISION,
+      useFactory: (
+        quotes: QuoteVersionRepository,
+        tokenHasher: TokenHasher,
+        profile: OrganizationProfileRepository,
+        clock: Clock,
+        unitOfWork: UnitOfWork,
+        ids: IdGenerator,
+      ): RecordQuoteDecision =>
+        new RecordQuoteDecision({
+          quotes,
+          tokenHasher,
+          profile,
+          clock,
+          unitOfWork,
+          ids,
+        }),
+      inject: [
+        QUOTE_VERSION_REPOSITORY,
+        TOKEN_HASHER,
+        ORGANIZATION_PROFILE_REPOSITORY,
+        CLOCK,
+        UNIT_OF_WORK,
+        ID_GENERATOR,
       ],
     },
     {

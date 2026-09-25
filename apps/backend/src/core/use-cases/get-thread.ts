@@ -3,19 +3,26 @@ import type { ConversationRepository } from "../ports/conversation-repository";
 import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { MessageRepository } from "../ports/message-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
 
 export interface GetThreadDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
   readonly revisions: ProcessingRevisionRepository;
   readonly drafts: DraftRevisionRepository;
+  readonly quotes: QuoteVersionRepository;
 }
 
 /**
- * One conversation with its messages (PLAN.md task 3.6). `processing` is the
- * latest revision of the conversation's latest message; `summary` is always
- * present once a revision completed. HTML is never returned. Unknown ids
+ * One conversation with its messages (PLAN.md task 3.6). `processing` is
+ * the latest revision of the conversation's latest message; `summary` is
+ * always present once a revision completed. HTML is never returned. Unknown ids
  * resolve to `undefined` (HTTP layer maps that to 404).
+ *
+ * Slice 6: a quote-linked draft carries `totalMinor`/`currency` from the
+ * immutable quote snapshot (never the current price list), and
+ * `openQuote` reports the conversation's newest `prepared`/`sent` quote
+ * version while one is still awaiting the customer's decision.
  */
 export class GetThread {
   constructor(private readonly deps: GetThreadDeps) {}
@@ -48,6 +55,10 @@ export class GetThread {
       organizationId,
       conversationId,
     );
+    const quote =
+      draft && draft.quoteVersionId !== null
+        ? await this.deps.quotes.findById(organizationId, draft.quoteVersionId)
+        : undefined;
     const threadDraft =
       draft && (draft.status === "proposed" || draft.status === "approved")
         ? {
@@ -58,8 +69,17 @@ export class GetThread {
             ...(draft.factIds.length > 0
               ? { factIds: [...draft.factIds] }
               : {}),
+            ...(quote
+              ? { totalMinor: quote.totalMinor, currency: quote.currency }
+              : {}),
           }
         : undefined;
+    // Slice 6: the conversation's open quote version (newest prepared,
+    // else newest sent). Decided and superseded versions never appear.
+    const openQuote = await this.deps.quotes.findLatestOpenByConversation(
+      organizationId,
+      conversationId,
+    );
     return {
       conversation: {
         id: conversation.id,
@@ -86,6 +106,16 @@ export class GetThread {
           }
         : undefined,
       draft: threadDraft,
+      ...(openQuote
+        ? {
+            openQuote: {
+              quoteVersionId: openQuote.id,
+              status: openQuote.status,
+              totalMinor: openQuote.totalMinor,
+              currency: openQuote.currency,
+            },
+          }
+        : {}),
     };
   }
 }

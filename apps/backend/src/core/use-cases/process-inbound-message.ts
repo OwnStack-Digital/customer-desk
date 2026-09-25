@@ -1,12 +1,14 @@
 import type { DraftRevision } from "../domain/drafting";
-import { buildFaqBody, compareFactIds } from "../domain/drafting";
+import { buildFaqBody, cleanWording, compareFactIds } from "../domain/drafting";
 import type { StoredMessage } from "../domain/messaging";
+import { buildQuote } from "../domain/pricing";
 import type {
   Classification,
   ProcessingResult,
   ProcessingRevision,
   TerminalProcessingStatus,
 } from "../domain/processing";
+import { buildQuoteBody, quoteVersionOf } from "../domain/quote";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
@@ -15,7 +17,10 @@ import type { DrafterPort } from "../ports/drafter";
 import type { IdGenerator } from "../ports/id-generator";
 import type { KnowledgeBaseRepository } from "../ports/knowledge-base-repository";
 import type { MessageRepository } from "../ports/message-repository";
+import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
+import type { PriceListRepository } from "../ports/price-list-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
 
 export interface ProcessInboundMessageDeps {
   readonly messages: MessageRepository;
@@ -25,6 +30,9 @@ export interface ProcessInboundMessageDeps {
   readonly classifier: ClassifierPort;
   readonly drafter: DrafterPort;
   readonly knowledgeBase: KnowledgeBaseRepository;
+  readonly priceList: PriceListRepository;
+  readonly profile: OrganizationProfileRepository;
+  readonly quotes: QuoteVersionRepository;
   readonly ids: IdGenerator;
   readonly clock: Clock;
 }
@@ -48,6 +56,14 @@ const NO_USABLE_TEXT_SUMMARY =
  * unknown line instead — never an answer from model knowledge (the
  * drafter physically cannot add facts). HTML-only or attachments-only mail
  * is `needs_human` with no draft: there is nothing to ground on.
+ *
+ * Slice 6: a quote lane with a priceable request completes as `ready` plus
+ * one `prepared` quote version (an immutable snapshot from `buildQuote`)
+ * and one `proposed` draft linked to it, whose deterministic body carries
+ * the `{{quoteLink}}` placeholder — the real link only materializes at
+ * send. Unpriceable work (unknown line, missing quantity) is
+ * `needs_human` with the interpretation in the summary and no draft.
+ * Amounts, lines, and assumptions never change after this point.
  *
  * Slice 5 draft-replacement policy: when processing produces a new machine
  * draft for a conversation it first supersedes that conversation's origin
@@ -129,7 +145,8 @@ export class ProcessInboundMessage {
     try {
       const classification = await this.classify(message);
       let outcome = outcomeOf(classification);
-      if (classification.lane === "faq") {
+      let summary = classification.summary;
+      if (classification.lane === "faq" || classification.lane === "quote") {
         const conversation = await this.deps.conversations.findById(
           organizationId,
           message.conversationId,
@@ -138,19 +155,31 @@ export class ProcessInboundMessage {
           // Take-over: classification is still recorded, but the current
           // draft stays exactly as it is and no machine draft is created.
           outcome = "needs_human";
-        } else {
+        } else if (classification.lane === "faq") {
           if ((classification.faqFactIds ?? []).length === 0) {
             // Task 4.4: no supporting fact stays unknown.
             outcome = "needs_human";
           }
           // Task 4.2: the FAQ lane records one `proposed` draft revision.
           await this.insertFaqDraft(organizationId, message, classification);
+        } else {
+          // Slice 6: price the extracted request in code; unpriceable
+          // work parks with a human — it never produces a draft.
+          const priced = buildQuote(this.deps.priceList.getPriceList(), {
+            lines: classification.quoteRequest?.lines ?? [],
+          });
+          if (priced.kind === "unpriceable") {
+            outcome = "needs_human";
+            summary = `Quote request cannot be priced: ${priced.reasons.join(" ")}`;
+          } else {
+            await this.insertQuoteDraft(organizationId, message, priced);
+          }
         }
       }
       await this.deps.revisions.completeRevision(revision.id, {
         status: outcome,
         lane: classification.lane,
-        summary: classification.summary,
+        summary,
         classification,
         error: null,
       });
@@ -158,7 +187,7 @@ export class ProcessInboundMessage {
         revisionId: revision.id,
         status: outcome,
         lane: classification.lane,
-        summary: classification.summary,
+        summary,
       };
     } catch (error) {
       // Timeout-style classifier failure: durable `failed` revision, the
@@ -228,6 +257,66 @@ export class ProcessInboundMessage {
       updatedAt: now,
     };
     await this.deps.drafts.insertDraft(draft);
+  }
+
+  /**
+   * Builds and persists the slice-6 quote artifacts (task 6.3): one
+   * `proposed` draft and one `prepared` quote version (the immutable
+   * priced snapshot) linked to it. The deterministic body carries the
+   * `{{quoteLink}}` placeholder (orchestrator decision: the token is
+   * issued only at send). The drafter contributes only greeting/closing
+   * wording, and only when it survives the drop rule. The draft is
+   * inserted first (its `quote_version_id` column carries no foreign
+   * key) so the snapshot row can reference it.
+   */
+  private async insertQuoteDraft(
+    organizationId: string,
+    message: StoredMessage,
+    priced: Extract<ReturnType<typeof buildQuote>, { kind: "priceable" }>,
+  ): Promise<void> {
+    // Draft-replacement policy (slice 5), same as the FAQ lane.
+    await this.deps.drafts.supersedeProcessingProposed(
+      organizationId,
+      message.conversationId,
+    );
+    const now = this.deps.clock.now().toISOString();
+    const quoteVersionId = this.deps.ids.nextId();
+    const wording = await this.deps.drafter.draft();
+    const bodyText = buildQuoteBody({
+      greeting: cleanWording(wording.greeting),
+      closing: cleanWording(wording.closing),
+      quote: priced,
+      quoteValidityDays: this.deps.profile.getProfile().quoteValidityDays,
+    });
+    const draft: DraftRevision = {
+      id: this.deps.ids.nextId(),
+      organizationId,
+      conversationId: message.conversationId,
+      messageId: message.id,
+      status: "proposed",
+      origin: "processing",
+      bodyText,
+      factIds: [],
+      knowledgeBaseVersion: null,
+      assumptions: [...priced.assumptions],
+      outboundMessageId: null,
+      quoteVersionId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.deps.drafts.insertDraft(draft);
+    await this.deps.quotes.insertQuoteVersion(
+      quoteVersionOf(
+        {
+          id: quoteVersionId,
+          organizationId,
+          conversationId: message.conversationId,
+          draftRevisionId: draft.id,
+        },
+        priced,
+        now,
+      ),
+    );
   }
 
   /**

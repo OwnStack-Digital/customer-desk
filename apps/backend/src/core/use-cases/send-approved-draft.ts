@@ -2,6 +2,7 @@ import type { DraftRevision } from "../domain/drafting";
 import { ConflictError } from "../domain/errors";
 import type { StoredMessage } from "../domain/messaging";
 import type { OutboxEntry } from "../domain/outbox";
+import { QUOTE_LINK_PLACEHOLDER } from "../domain/quote";
 import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
@@ -10,6 +11,9 @@ import type { IdGenerator } from "../ports/id-generator";
 import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
 import type { OutboxRepository } from "../ports/outbox-repository";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
+import type { TokenGenerator } from "../ports/token-generator";
+import type { TokenHasher } from "../ports/token-hasher";
 import type { UnitOfWork } from "../ports/unit-of-work";
 
 export interface SendApprovedDraftDeps {
@@ -18,6 +22,15 @@ export interface SendApprovedDraftDeps {
   readonly drafts: DraftRevisionRepository;
   readonly profile: OrganizationProfileRepository;
   readonly unitOfWork: UnitOfWork;
+  /** The quote store, used inside the unit of work (slice 6). */
+  readonly quotes: QuoteVersionRepository;
+  readonly tokens: TokenGenerator;
+  readonly tokenHasher: TokenHasher;
+  /**
+   * Quote link host (PLAN.md frozen choice). No default in production:
+   * sending a quote-linked draft fails closed when it is unset.
+   */
+  readonly publicAppUrl: string | undefined;
   readonly ids: IdGenerator;
   readonly clock: Clock;
 }
@@ -57,6 +70,14 @@ class AlreadyConsumedError extends Error {
  * revision is 409 `conflict`; an unknown revision is 404 (the caller maps
  * `undefined`). Nothing marks an outbox row `sent` here — delivery is the
  * pilot worker's job.
+ *
+ * Slice 6: sending a draft linked to a `prepared` quote version issues the
+ * public token (only its SHA-256 is stored), replaces the body's
+ * `{{quoteLink}}` placeholder with the real `${PUBLIC_APP_URL}/quote/<token>`
+ * link, moves the version `prepared → sent`, sets `sent_at` and
+ * `valid_until`, supersedes every other `sent` version of the conversation
+ * (their tokens are revoked → 404), and audits `quote.sent` — all in the
+ * same unit of work. A non-quote draft is sent exactly as in slice 5.
  */
 export class SendApprovedDraft {
   constructor(private readonly deps: SendApprovedDraftDeps) {}
@@ -81,6 +102,14 @@ export class SendApprovedDraft {
     if (draft.status !== "approved") {
       throw new ConflictError(
         `Only an approved draft can be sent; revision ${draft.id} is ${draft.status}.`,
+      );
+    }
+    if (draft.quoteVersionId !== null && !this.deps.publicAppUrl) {
+      // Fail closed (documented slice-6 decision): no quote can go out
+      // without its accept link host. Plain error → 500 internal; the
+      // message names the missing env so operators can fix it.
+      throw new Error(
+        "PUBLIC_APP_URL is not set; a quote draft cannot be sent without it.",
       );
     }
     const conversation = await this.deps.conversations.findById(
@@ -128,6 +157,7 @@ export class SendApprovedDraft {
       drafts: DraftRevisionRepository;
       outbox: OutboxRepository;
       audit: AuditEventRepository;
+      quotes: QuoteVersionRepository;
     },
   ): Promise<SendResult> {
     const fresh = await repos.drafts.findById(organizationId, draft.id);
@@ -146,6 +176,23 @@ export class SendApprovedDraft {
 
     const now = this.deps.clock.now().toISOString();
     const from = this.deps.profile.getProfile();
+    // Slice 6 (orchestrator decision): a quote-linked draft stores its
+    // body with the `{{quoteLink}}` placeholder; the real link is built
+    // here, and only here. Amounts, lines, and assumptions never change
+    // at send time. The raw token exists only inside the link below — it
+    // is never stored, logged, or returned.
+    let bodyText: string;
+    let quote: { versionId: string; tokenHash: string } | undefined;
+    if (draft.quoteVersionId !== null) {
+      const rawToken = this.deps.tokens.nextToken();
+      const tokenHash = this.deps.tokenHasher.hash(rawToken);
+      bodyText = draft.bodyText
+        .split(QUOTE_LINK_PLACEHOLDER)
+        .join(`${this.deps.publicAppUrl}/quote/${rawToken}`);
+      quote = { versionId: draft.quoteVersionId, tokenHash };
+    } else {
+      bodyText = draft.bodyText;
+    }
     const message: StoredMessage = {
       id: this.deps.ids.nextId(),
       organizationId,
@@ -165,7 +212,7 @@ export class SendApprovedDraft {
       cc: null,
       replyTo: null,
       subject: replySubject(conversationSubject),
-      text: draft.bodyText,
+      text: bodyText,
       html: null,
       attachments: null,
       receivedAt: now,
@@ -186,6 +233,50 @@ export class SendApprovedDraft {
       updatedAt: now,
     };
     await repos.outbox.insertOutbox(outbox);
+
+    if (quote) {
+      // Task 6.4, inside the same unit of work: supersede every other
+      // `sent` version of this conversation (their tokens become 404),
+      // then move this one `prepared → sent` with its token hash,
+      // `sent_at`, and `valid_until = sent_at + quoteValidityDays` (UTC
+      // days, from the organization config).
+      const validUntil = new Date(
+        this.deps.clock.now().getTime() +
+          from.quoteValidityDays * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      await repos.quotes.supersedeSentExcept(
+        organizationId,
+        draft.conversationId,
+        quote.versionId,
+        now,
+      );
+      const marked = await repos.quotes.markSent(
+        organizationId,
+        quote.versionId,
+        {
+          tokenHash: quote.tokenHash,
+          sentAt: now,
+          validUntil,
+          updatedAt: now,
+        },
+      );
+      if (!marked) {
+        throw new ConflictError(
+          `The quote version ${quote.versionId} is no longer prepared.`,
+        );
+      }
+      await repos.audit.insertEvent({
+        id: this.deps.ids.nextId(),
+        organizationId,
+        actor,
+        action: "quote.sent",
+        entityType: "quote_version",
+        entityId: quote.versionId,
+        revisionId: draft.id,
+        correlationId: null,
+        createdAt: now,
+      });
+    }
 
     await repos.audit.insertEvent({
       id: this.deps.ids.nextId(),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KnowledgeBase } from "../../../core/domain/config";
+import type { KnowledgeBase, PriceList } from "../../../core/domain/config";
 import { ClassifierError } from "../../../core/domain/processing";
 import { FakeClassifier } from "./fake-classifier";
 
@@ -21,9 +21,39 @@ const KB: KnowledgeBase = {
   ],
 };
 
-const classifier = new FakeClassifier({
-  getKnowledgeBase: () => KB,
-});
+const PRICE_LIST: PriceList = {
+  version: "pl-1",
+  currency: "AUD",
+  taxMode: "exclusive",
+  taxRateBps: 1000,
+  rules: [
+    {
+      id: "regular_clean",
+      kind: "per_unit",
+      label: "Regular clean",
+      unit: "bedroom",
+      amountMinor: 4500,
+      minimumChargeMinor: 9000,
+      aliases: ["clean", "regular clean"],
+    },
+    {
+      id: "oven_clean",
+      kind: "fixed",
+      label: "Oven clean",
+      amountMinor: 6500,
+      aliases: ["oven"],
+    },
+  ],
+};
+
+const classifier = new FakeClassifier(
+  {
+    getKnowledgeBase: () => KB,
+  },
+  {
+    getPriceList: () => PRICE_LIST,
+  },
+);
 
 /** Classifier input without an outbound-quote context by default. */
 function input(

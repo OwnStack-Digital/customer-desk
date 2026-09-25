@@ -308,7 +308,22 @@ describe("owner reads over HTTP", () => {
       lane: "quote",
       summary: "Quote request",
     });
-    expect(thread.body.draft).toBeUndefined();
+    // Slice 6: the priceable quote fixture carries a proposed draft whose
+    // body holds the link placeholder, plus the open quote version on the
+    // thread (amounts from the immutable snapshot).
+    expect(thread.body.draft).toMatchObject({
+      status: "proposed",
+      bodyText: expect.stringContaining("{{quoteLink}}"),
+      totalMinor: 7150,
+      currency: "AUD",
+    });
+    expect(thread.body.draft.bodyText).toContain("Oven clean: AUD 65.00");
+    expect(thread.body.openQuote).toMatchObject({
+      status: "prepared",
+      totalMinor: 7150,
+      currency: "AUD",
+      quoteVersionId: expect.any(String),
+    });
   });
 
   it("filters the inbox: needs_human, complaints, and 422 on an unknown filter", async () => {

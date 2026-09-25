@@ -11,6 +11,8 @@ import type { IdGenerator } from "../../../core/ports/id-generator";
 import type { OrganizationProfileRepository } from "../../../core/ports/organization-profile-repository";
 import type { TransactionScopedRepositories } from "../../../core/ports/unit-of-work";
 import { SendApprovedDraft } from "../../../core/use-cases/send-approved-draft";
+import { RandomTokenGenerator } from "../security/random-token-generator";
+import { Sha256TokenHasher } from "../security/sha256-token-hasher";
 import { DrizzleAuditEventRepository } from "./audit-event-repository";
 import {
   createPersistenceClient,
@@ -20,6 +22,7 @@ import {
 import { DrizzleConversationRepository } from "./conversation-repository";
 import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
 import { DrizzleOutboxRepository } from "./outbox-repository";
+import { DrizzleQuoteVersionRepository } from "./quote-version-repository";
 import {
   sqliteConversations,
   sqliteDraftRevisions,
@@ -120,6 +123,10 @@ function makeSend(uow: DrizzleUnitOfWork, prefix: string): SendApprovedDraft {
     drafts: new DrizzleDraftRevisionRepository(client),
     profile: PROFILE_REPO,
     unitOfWork: uow,
+    quotes: new DrizzleQuoteVersionRepository(client),
+    tokens: new RandomTokenGenerator(),
+    tokenHasher: new Sha256TokenHasher(),
+    publicAppUrl: "https://app.example.test",
     ids: new SequentialIds(prefix),
     clock: new FixedClock(),
   });
