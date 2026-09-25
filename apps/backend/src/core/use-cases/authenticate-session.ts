@@ -30,7 +30,9 @@ export class AuthenticateSession {
       session.revokedAt !== null ||
       this.deps.clock.now().getTime() >= Date.parse(session.expiresAt)
     ) {
-      throw new AuthError();
+      throw new AuthError(
+        "Session is missing or has expired. Please sign in again.",
+      );
     }
     return session;
   }

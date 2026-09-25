@@ -33,7 +33,9 @@ export class SessionGuard implements CanActivate {
       .getRequest<{ headers: Record<string, unknown> }>();
     const sessionToken = readCookie(request.headers, SESSION_COOKIE);
     if (!sessionToken) {
-      throw new AuthError();
+      throw new AuthError(
+        "Session is missing or has expired. Please sign in again.",
+      );
     }
     await this.authenticate.run(this.config.organization.id, sessionToken);
     return true;
