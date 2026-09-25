@@ -388,11 +388,11 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 6.
 
-- [ ] **7.1** Service lane stores the internal note on the processing artifact and shows it on the thread. No outbound draft.
-- [ ] **7.2** Complaint lane is urgent, `needs_human`, optional fixed draft only, and is excluded from any send-without-approval path. There is no such path anyway; add a test that send requires `approved`.
-- [ ] **7.3** Quote-reply lane stores candidate quote ids and extracted intent. It does not call `RecordQuoteDecision`. Operator confirm endpoint records the decision or, for `change` / no match / multiple matches, leaves a human item.
-- [ ] **7.4** Attachment metadata with no usable text stays `needs_human` across lanes.
-- [ ] **7.5** Golden path fixture: inbound quote → thread → process → approve → send → outbox queued → public accept. Plus one complaint fixture that never creates an outbox row by itself.
+- [x] **7.1** Service lane stores the internal note on the processing artifact and shows it on the thread. No outbound draft.
+- [x] **7.2** Complaint lane is urgent, `needs_human`, optional fixed draft only, and is excluded from any send-without-approval path. There is no such path anyway; add a test that send requires `approved`.
+- [x] **7.3** Quote-reply lane stores candidate quote ids and extracted intent. It does not call `RecordQuoteDecision`. Operator confirm endpoint records the decision or, for `change` / no match / multiple matches, leaves a human item.
+- [x] **7.4** Attachment metadata with no usable text stays `needs_human` across lanes.
+- [x] **7.5** Golden path fixture: inbound quote → thread → process → approve → send → outbox queued → public accept. Plus one complaint fixture that never creates an outbox row by itself.
 
 **Acceptance:** demonstrator gate list above. Then stop. Do not open pilot work in the same change.
 
