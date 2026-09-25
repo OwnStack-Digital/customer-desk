@@ -130,12 +130,22 @@ export class ProcessInboundMessage {
       const classification = await this.classify(message);
       let outcome = outcomeOf(classification);
       if (classification.lane === "faq") {
-        if ((classification.faqFactIds ?? []).length === 0) {
-          // Task 4.4: no supporting fact stays unknown.
+        const conversation = await this.deps.conversations.findById(
+          organizationId,
+          message.conversationId,
+        );
+        if (conversation?.automationPaused) {
+          // Take-over: classification is still recorded, but the current
+          // draft stays exactly as it is and no machine draft is created.
           outcome = "needs_human";
+        } else {
+          if ((classification.faqFactIds ?? []).length === 0) {
+            // Task 4.4: no supporting fact stays unknown.
+            outcome = "needs_human";
+          }
+          // Task 4.2: the FAQ lane records one `proposed` draft revision.
+          await this.insertFaqDraft(organizationId, message, classification);
         }
-        // Task 4.2: the FAQ lane records one `proposed` draft revision.
-        await this.insertFaqDraft(organizationId, message, classification);
       }
       await this.deps.revisions.completeRevision(revision.id, {
         status: outcome,

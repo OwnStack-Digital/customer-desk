@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { FaqBlock } from "./drafting";
-import { buildFaqBody, isDroppedWording, unknownLine } from "./drafting";
+import {
+  buildFaqBody,
+  compareFactIds,
+  isDroppedWording,
+  unknownLine,
+} from "./drafting";
 
 const BLOCKS: FaqBlock[] = [
   { id: "kb_hours", text: "We clean Monday to Friday, 8am to 5pm." },
@@ -152,3 +157,32 @@ function splitSentences(line: string): string[] {
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence !== "");
 }
+
+describe("compareFactIds (carried note 11)", () => {
+  it("is plain code-unit order, not locale-sensitive", () => {
+    const ids = ["kb_apple", "kb_Zebra", "kb_Mixed", "kb_hours"];
+    expect([...ids].sort(compareFactIds)).toEqual([
+      "kb_Mixed",
+      "kb_Zebra",
+      "kb_apple",
+      "kb_hours",
+    ]);
+    // Uppercase letters sort before lowercase in code-unit order; a
+    // locale-aware comparison could disagree.
+    expect(compareFactIds("kb_B", "kb_a")).toBeLessThan(0);
+  });
+
+  it("orders the rendered body the same way", () => {
+    const blocks = [
+      { id: "kb_apple", text: "Apple fact." },
+      { id: "kb_Zebra", text: "Zebra fact." },
+      { id: "kb_Mixed", text: "Mixed fact." },
+    ];
+    const body = buildFaqBody({ blocks, unknownTopics: [] });
+    expect(body.split("\n\n")).toEqual([
+      "Mixed fact.",
+      "Zebra fact.",
+      "Apple fact.",
+    ]);
+  });
+});

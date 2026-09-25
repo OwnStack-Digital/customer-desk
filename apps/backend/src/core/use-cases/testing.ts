@@ -524,6 +524,10 @@ export function harness() {
     taxMode: "exclusive",
     mailboxId: MAILBOX,
   });
+  // One shared id generator: ids stay unique across use cases so a draft
+  // id can never collide with a message or audit id in a test.
+  const ids = new SequentialIds();
+  const clock = new FixedClock();
   // Default classification: the "how much" fixture reads as a quote.
   const classifier = new ScriptedClassifier(classificationOf("quote"));
   const knowledgeBase = new FakeKnowledgeBase();
@@ -535,8 +539,8 @@ export function harness() {
     classifier,
     drafter,
     knowledgeBase,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
+    ids,
+    clock,
   });
   const receive = new ReceiveInboundEmail({
     conversations,
@@ -544,8 +548,8 @@ export function harness() {
     revisions,
     profile,
     processing,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
+    ids,
+    clock,
   });
   const listInbox = new ListInbox({ conversations, messages, revisions });
   const getThread = new GetThread({
@@ -565,20 +569,20 @@ export function harness() {
     drafts,
     profile,
     unitOfWork,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
+    ids,
+    clock,
   });
   const reviewDraft = new ReviewDraft({
     drafts,
     audit,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
+    ids,
+    clock,
   });
   const takeOver = new TakeOverConversation({
     conversations,
     audit,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
+    ids,
+    clock,
   });
   const listOutbox = new ListOutbox(outbox);
   return {
