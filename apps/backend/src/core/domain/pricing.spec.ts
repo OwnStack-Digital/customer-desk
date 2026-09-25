@@ -285,7 +285,10 @@ describe("buildQuote (task 6.1)", () => {
     // Mutate the *input* after computing: the snapshot holds by value,
     // never by reference into the config (price lists are frozen at boot,
     // but the guarantee must hold regardless).
-    mutable.rules[0]!.amountMinor = 1;
+    const first = mutable.rules[0];
+    if (first) {
+      first.amountMinor = 1;
+    }
     mutable.currency = "USD";
     mutable.version = "pl-2";
     expect(quote.lines[0]).toMatchObject({ amountMinor: 6500 });
