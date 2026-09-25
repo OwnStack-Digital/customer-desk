@@ -2,7 +2,7 @@
 
 **Company:** OwnStack · **Product:** BOS (v3)
 
-Companion to [`PRODUCT.md`](./PRODUCT.md): product = *what/why*; this file = *how*. This is the living source of truth. Keep diagrams in Mermaid and decisions in git; use an ADR only when historical rationale must be retained.
+Companion to [`PRODUCT.md`](./PRODUCT.md): product = *what/why*; this file = *how*. Stack and delivery choices live in [`DECISIONS.md`](./DECISIONS.md). This is the living source of truth for boundaries and behavior. Keep diagrams in Mermaid and decisions in git; use an ADR only when historical rationale must be retained.
 
 ## Milestones
 
