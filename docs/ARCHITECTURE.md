@@ -211,19 +211,32 @@ Swap file adapters for DB adapters without changing use cases. Do not dual-write
 ## Folder map
 
 ```text
-src/domain/                  # few types + pure pricing
-src/application/ports/
-src/application/use-cases/
-src/adapters/primary/http/
-src/adapters/secondary/persistence/
-src/adapters/secondary/config-files/
-src/adapters/secondary/email/    # outbox
-src/adapters/secondary/ai/
-src/infrastructure/              # composition root, db
-config/                          # org, kb, price-list
+src/
+  core/                         # application boundary
+    use-cases/                  # flat, prominent application actions
+      receive-inbound-email.ts
+      prepare-draft.ts
+      review-draft.ts
+      send-approved-draft.ts
+      ...
+    domain/                     # few types, transitions, pure pricing
+    ports/                      # repositories and external capabilities
+  adapters/
+    inbound/http/               # BOS API controllers
+    outbound/
+      persistence/              # database repositories
+      config-files/             # file-backed config repositories
+      email/                    # outbox
+      ai/                       # classifier/drafter
+  infrastructure/              # server, database setup, composition root
+  main.ts
+web/                            # BOS UI; calls the API
+config/                         # org, KB, price list
 docs/PRODUCT.md
-docs/ARCHITECTURE.md             # this file
+docs/ARCHITECTURE.md
 ```
+
+Use cases are the input ports; do not create duplicate `ports/input` interfaces. `core` imports nothing from adapters, infrastructure, or web. Keep use cases flat until their number—not anticipated future complexity—requires grouping.
 
 ---
 
