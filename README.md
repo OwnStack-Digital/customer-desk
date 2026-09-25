@@ -37,6 +37,17 @@ On boot, when no operator credentials exist, the backend seeds one owner
 from `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` (see `.env.example`). Sign in
 at the web app's `/login`; the session cookie lasts 7 days.
 
+## Inbound email
+
+`POST /inbound/emails` accepts the normalized `InboundEmail` DTO behind
+`Authorization: Bearer <BOS_INGRESS_KEY>` (constant-time compare). A new
+message returns **201** `{ messageId, conversationId, duplicate: false,
+processing: "pending" }`; a replay of the same
+`(mailboxId, sourceMessageId)` returns **200** with the original ids and
+`duplicate: true`. The body's `mailboxId` must equal the configured
+mailbox id (else 422). Threads form only via `inReplyTo` / `references`
+against stored RFC Message-IDs in the same mailbox.
+
 ## Run
 
 ```sh
