@@ -329,12 +329,12 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 2.
 
-- [ ] **3.1** Migration: `processing_revisions`.
-- [ ] **3.2** `ProcessInboundMessage` status machine: `pending → processing → ready | needs_human | failed`. Complaint precedence and low-confidence rule implemented here, not in the controller.
-- [ ] **3.3** Fake `ClassifierPort` implementing the contract above. `AiModule` binds the fake. No live model client.
-- [ ] **3.4** After receipt commits, call processing. A thrown classifier records `failed` and still returns 201. Noise is parked with no draft. `other` and low confidence are `needs_human`.
-- [ ] **3.5** `RetryMessageProcessing` appends a revision and is idempotent while a revision is already `processing`.
-- [ ] **3.6** Inbox filter `needs_human` and `complaints`. Complaint rows show urgent. Thread shows lane, status, and summary.
+- [x] **3.1** Migration: `processing_revisions`.
+- [x] **3.2** `ProcessInboundMessage` status machine: `pending → processing → ready | needs_human | failed`. Complaint precedence and low-confidence rule implemented here, not in the controller.
+- [x] **3.3** Fake `ClassifierPort` implementing the contract above. `AiModule` binds the fake. No live model client.
+- [x] **3.4** After receipt commits, call processing. A thrown classifier records `failed` and still returns 201. Noise is parked with no draft. `other` and low confidence are `needs_human`.
+- [x] **3.5** `RetryMessageProcessing` appends a revision and is idempotent while a revision is already `processing`.
+- [x] **3.6** Inbox filter `needs_human` and `complaints`. Complaint rows show urgent. Thread shows lane, status, and summary.
 
 **Acceptance:** one fixture per lane plus duplicate ingress, mixed complaint, classifier throw, and `[bos:low]`. None of these delete the message.
 
