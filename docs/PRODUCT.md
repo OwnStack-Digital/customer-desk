@@ -45,7 +45,7 @@ Intent classified (quote / FAQ / service / complaint / …)
 Draft prepared for that lane
   (prices only from the price list; answers only from known business facts)
         ↓
-Owner (or office) reviews on phone when approval is required
+Owner-authorized operator reviews on phone when approval is required
         ↓
 Reply sent from the system
         ↓
@@ -60,9 +60,9 @@ Quote lane continues through accept/decline. Service and complaint lanes end whe
 | --- | --- |
 | **Inbox** | All customer email in one place, by thread |
 | **Classifier** | Routes each message to the right lane |
-| **Knowledge base** | Short, owner-edited facts for FAQ answers |
+| **Knowledge base** | Short, owner-controlled facts for FAQ answers (file-managed initially) |
 | **Price list** | Catalog + fixed rules for money (quotes only) |
-| **Drafts** | AI writes wording; rules/facts constrain substance |
+| **Drafts** | AI writes non-binding wording; rules/facts constrain substance |
 | **Owner review** | Phone-friendly approve / edit / send / take over |
 | **Accept link** | Customer can accept or decline a sent quote |
 | **History** | Every message, draft, and decision is kept |
@@ -71,12 +71,12 @@ Quote lane continues through accept/decline. Service and complaint lanes end whe
 
 1. **AI never sets the price** — the price list / rules engine does.
 2. **AI never invents business facts** — FAQ answers come only from the knowledge base (or the draft says what’s unknown).
-3. **Nothing commercial or binding sends without owner approval** — quotes, promises, complaint replies, schedule changes.
+3. **Nothing commercial or binding sends without approval by the owner or an owner-authorized operator** — quotes, promises, complaint replies, schedule changes.
 4. **Missing quote facts become listed assumptions**, not silent invention.
 5. **Acceptance ≠ payment ≠ job booked** — we record the commercial yes/no; scheduling stays with the owner’s tools.
 6. **Complaints always go to a human** — draft optional, auto-send never.
 
-Safe, fixed templates (e.g. “we got your email”) may send without approval if the owner turns them on. They never include prices or commitments.
+Later, owner-enabled fixed acknowledgements (e.g. “we got your email”) may auto-send. They never include prices or commitments.
 
 ## What’s deliberately out
 
@@ -105,16 +105,22 @@ A real cleaning or trades business can:
 5. Never lose a complaint in the noise  
 6. Spend less owner time on inbox and quoting, without invented prices or fake facts  
 
-## Build order (when we implement)
+## Build order
 
-1. Store org, contacts, conversations, messages  
-2. Ingest email (one mailbox) + inbox UI  
-3. Classify intent into the lanes above  
-4. Knowledge base + FAQ draft + owner send  
-5. Price list + quote draft + owner send  
-6. Accept / decline on quotes  
-7. Service-request capture + complaint escalate  
-8. Only then: polish, second channel, extras  
+### Core demonstrator
+
+1. One-org access, conversations/messages, normalized email API + inbox
+2. Classify all lanes; failures and uncertain mail remain visible
+3. File-managed knowledge base + grounded FAQ draft
+4. Draft revision, approval, outbound message + outbox visualization
+5. Pure price rules + versioned quote + secure accept/decline
+6. Service note, complaint escalation, quote-reply owner review
+
+### Pilot readiness
+
+7. Connect one real mailbox for inbound and outbound email
+8. Verify mixed-email handling, complaint visibility, phone approval/send, quote outcomes, and recovery
+9. Only then: pilot; polish, admin UI, second channel, and extras wait
 
 ---
 
