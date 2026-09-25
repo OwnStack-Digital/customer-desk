@@ -358,12 +358,12 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 4.
 
-- [ ] **5.1** Migration: `outbox_entries`, `audit_events`.
-- [ ] **5.2** `ReviewDraft`: edit creates a new proposed revision and supersedes the old one; approve binds one revision; discard is terminal. Any edit clears approval.
-- [ ] **5.3** `SendApprovedDraft` in one unit of work: immutable outbound `Message`, `queued` outbox row, audit event, draft `consumed`. Same approved revision sent twice returns the first message. Stale revision is 409.
-- [ ] **5.4** Take-over endpoint. While paused, a new inbound FAQ must not replace the current draft; classification still updates.
-- [ ] **5.5** Recording `EmailSenderPort` is bound and unused by HTTP. No route marks an outbox row `sent`.
-- [ ] **5.6** Thread actions: edit, approve, discard, send, take over. Outbox page lists queued rows and last error column (empty in the happy path).
+- [x] **5.1** Migration: `outbox_entries`, `audit_events`.
+- [x] **5.2** `ReviewDraft`: edit creates a new proposed revision and supersedes the old one; approve binds one revision; discard is terminal. Any edit clears approval.
+- [x] **5.3** `SendApprovedDraft` in one unit of work: immutable outbound `Message`, `queued` outbox row, audit event, draft `consumed`. Same approved revision sent twice returns the first message. Stale revision is 409.
+- [x] **5.4** Take-over endpoint. While paused, a new inbound FAQ must not replace the current draft; classification still updates.
+- [x] **5.5** Recording `EmailSenderPort` is bound and unused by HTTP. No route marks an outbox row `sent`.
+- [x] **5.6** Thread actions: edit, approve, discard, send, take over. Outbox page lists queued rows and last error column (empty in the happy path).
 
 **Acceptance:** use-case tests cover edit-invalidates-approval, discard, take-over, and send idempotency with in-memory ports. A Postgres test runs two concurrent sends and asserts one outbound message. Rollback test: a forced audit failure leaves no message and no consumed draft.
 
