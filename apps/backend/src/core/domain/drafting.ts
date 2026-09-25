@@ -31,6 +31,14 @@ export interface DrafterWording {
   readonly closing?: string;
 }
 
+/**
+ * The complaint lane's optional fixed draft (PLAN.md "Body rendering",
+ * slice 7): exactly this sentence — no model apology, no greeting or
+ * closing, nothing else. It is a `proposed` draft; nothing ever sends it
+ * without approval.
+ */
+export const COMPLAINT_DRAFT_BODY = "Thanks — the owner will reply personally.";
+
 /** One persisted draft revision (PLAN.md slice 4, `draft_revisions`). */
 export interface DraftRevision {
   readonly id: string;

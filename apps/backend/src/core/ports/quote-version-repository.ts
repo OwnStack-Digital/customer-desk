@@ -62,6 +62,17 @@ export interface QuoteVersionRepository {
   ): Promise<number>;
 
   /**
+   * Every `sent` quote version of a conversation — the quote-reply lane's
+   * candidate set at processing time (slice 7). Superseding keeps this at
+   * at most one, but the rule "no candidate or multiple candidates need a
+   * human" is enforced on whatever this returns.
+   */
+  findSentByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]>;
+
+  /**
    * Conditional `sent → accepted | declined`: records the decision and
    * `decided_at`. Returns false when the version was not `sent` (already
    * decided, superseded, or never sent).
@@ -71,6 +82,9 @@ export interface QuoteVersionRepository {
     quoteVersionId: string,
     decision: QuoteDecision,
     decidedAt: string,
+    /** Carried note 17: the decision is a state change — `updated_at`
+     * moves with it, same as markSent and supersedeSentExcept. */
+    updatedAt: string,
   ): Promise<boolean>;
 }
 

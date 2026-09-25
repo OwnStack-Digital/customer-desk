@@ -83,6 +83,8 @@ export class RecordQuoteDecision {
         quote.id,
         decision,
         decidedAt,
+        // Carried note 17: the decision moves `updated_at` too.
+        decidedAt,
       );
       if (!decided) {
         return false;

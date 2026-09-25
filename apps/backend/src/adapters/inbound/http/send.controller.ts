@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -16,10 +17,7 @@ import {
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
 import { validationError } from "./http-error";
-import { SessionGuard } from "./session.guard";
-
-/** The session guard authenticates an operator; audit rows name it. */
-const OPERATOR_ACTOR = "operator";
+import { operatorEmailOf, OperatorRequest, SessionGuard } from "./session.guard";
 
 interface SendBody {
   revisionId?: unknown;
@@ -51,6 +49,7 @@ export class SendController {
   async sendDraft(
     @Param("revisionId") revisionId: string,
     @Body() body: SendBody,
+    @Req() request: OperatorRequest,
   ): Promise<SendResult> {
     if (
       body === null ||
@@ -67,7 +66,8 @@ export class SendController {
     const result = await this.send.run(
       this.config.organization.id,
       revisionId,
-      OPERATOR_ACTOR,
+      // Carried note 14: the audit event names the real operator.
+      operatorEmailOf(request),
     );
     if (!result) {
       throw new NotFoundException("No draft revision with that id.");

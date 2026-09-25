@@ -29,7 +29,13 @@ export interface Classification {
     readonly missing: readonly string[];
     readonly nextAction: string;
   };
-  readonly quoteReply?: { readonly intent: QuoteReplyIntent };
+  /** The `candidateQuoteVersionIds` slot is enrichment added by processing
+   * (slice 7), not by the classifier: only processing can see the
+   * conversation's sent quote versions at that time. */
+  readonly quoteReply?: {
+    readonly intent: QuoteReplyIntent;
+    readonly candidateQuoteVersionIds?: readonly string[];
+  };
   readonly summary: string;
 }
 

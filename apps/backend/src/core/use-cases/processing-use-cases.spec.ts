@@ -5,6 +5,7 @@ import {
   classificationOf,
   email,
   harness,
+  NOW,
   ORG,
   outboundFixture,
 } from "./testing";
@@ -20,10 +21,12 @@ describe("ProcessInboundMessage", () => {
     ["faq", "ready"],
     ["quote", "ready"],
     ["service", "ready"],
-    ["quote_reply", "ready"],
     ["noise", "ready"],
     ["complaint", "needs_human"],
     ["other", "needs_human"],
+    // Slice 7: a quote reply with no sent candidate quote to confirm is a
+    // human item, not a ready owner action.
+    ["quote_reply", "needs_human"],
   ] as const)(
     "lane %s ends %s with the lane recorded on the revision",
     async (lane, status) => {
@@ -145,6 +148,203 @@ describe("ProcessInboundMessage", () => {
       }),
     );
     expect(h.classifier.calls.at(-1)?.repliedToOutboundQuote).toBe(false);
+  });
+
+  it("service lane stores the internal note on the artifact and creates no draft (7.1)", async () => {
+    const h = harness();
+    h.classifier.script(classificationOf("service"));
+    const received = await h.receive.run(email());
+    expect(received.processing).toBe("ready");
+    const revision = h.revisions.rows[0];
+    expect(revision?.classification?.service).toMatchObject({
+      request: "Oven clean",
+      supplied: [],
+      missing: [],
+      nextAction: "Reply to the customer to arrange the service.",
+    });
+    // Internal note only: no outbound draft for the service lane.
+    expect(h.drafts.rows).toHaveLength(0);
+    const thread = await h.getThread.run(ORG, received.conversationId);
+    expect(thread?.serviceNote).toEqual({
+      request: "Oven clean",
+      supplied: [],
+      missing: [],
+      nextAction: "Reply to the customer to arrange the service.",
+    });
+  });
+
+  it("complaint lane records the fixed optional draft and no outbox row (7.2)", async () => {
+    const h = harness();
+    h.classifier.script(classificationOf("complaint"));
+    const received = await h.receive.run(email());
+    expect(received.processing).toBe("needs_human");
+    const draft = h.drafts.rows.at(-1);
+    // Exactly the fixed sentence: no model apology, no wrapper wording.
+    expect(draft).toMatchObject({
+      status: "proposed",
+      origin: "processing",
+      bodyText: "Thanks — the owner will reply personally.",
+      conversationId: received.conversationId,
+    });
+    // Processing alone never queues anything for delivery.
+    expect(h.outbox.rows).toHaveLength(0);
+    expect(h.messages.rows).toHaveLength(1); // only the inbound message
+  });
+
+  it("a paused conversation keeps the complaint human with no machine draft", async () => {
+    const h = harness();
+    h.classifier.script(classificationOf("noise"));
+    await h.receive.run(email());
+    await h.takeOver.run(
+      ORG,
+      h.conversations.rows[0]?.id as string,
+      "operator",
+    );
+    h.classifier.script(classificationOf("complaint"));
+    const second = await h.receive.run(
+      email({
+        sourceMessageId: "src-2",
+        messageId: "<msg-2@customer.example>",
+        inReplyTo: "<msg-1@customer.example>",
+      }),
+    );
+    expect(second.processing).toBe("needs_human");
+    expect(h.drafts.rows).toHaveLength(0);
+  });
+
+  it("quote reply with one sent candidate and accept intent is a ready owner action (7.3)", async () => {
+    const h = harness();
+    // Quote → approve → send: one sent quote version on the conversation.
+    h.classifier.script(classificationOf("quote"));
+    const quoted = await h.receive.run(email());
+    const draft = h.drafts.rows.at(-1);
+    await h.reviewDraft.run(
+      ORG,
+      quoted.conversationId,
+      draft?.id as string,
+      { action: "approve" },
+      "owner@harbourandpine.example",
+    );
+    const sent = await h.sendDraft.run(
+      ORG,
+      draft?.id as string,
+      "owner@harbourandpine.example",
+    );
+    const sentQuote = h.quotes.rows.find(
+      (row) => row.conversationId === quoted.conversationId,
+    );
+    expect(sentQuote?.status).toBe("sent");
+
+    // The customer replies to the sent quote message.
+    h.classifier.script({
+      ...classificationOf("quote_reply"),
+      quoteReply: { intent: "accept" },
+    });
+    const reply = await h.receive.run(
+      email({
+        sourceMessageId: "src-reply",
+        messageId: "<reply-1@customer.example>",
+        inReplyTo: `<${draft?.id}@harbourandpine.example>`,
+        subject: "Re: Oven clean",
+        text: "Looks good, I accept the quote.",
+        receivedAt: "2025-06-01T01:00:00.000Z",
+      }),
+    );
+    expect(reply.conversationId).toBe(quoted.conversationId);
+    expect(reply.processing).toBe("ready");
+    const revision = h.revisions.rows.at(-1);
+    expect(revision?.classification?.quoteReply).toEqual({
+      intent: "accept",
+      candidateQuoteVersionIds: [sentQuote?.id],
+    });
+    // The reply itself never changed the quote state.
+    expect(h.quotes.rows.find((row) => row.id === sentQuote?.id)?.status).toBe(
+      "sent",
+    );
+    // The outbound message id is a usable threading key for the spec above.
+    expect(sent?.messageId).toBeDefined();
+    const thread = await h.getThread.run(ORG, reply.conversationId);
+    expect(thread?.quoteReply).toEqual({
+      intent: "accept",
+      candidateQuoteVersionIds: [sentQuote?.id],
+    });
+  });
+
+  it("quote reply with change/unclear intent or multiple candidates is needs_human", async () => {
+    const h = harness();
+    const conversationId = "ulid-outbound-conversation";
+    // Two sent candidate versions on the replied-to conversation.
+    for (const id of ["ulid-quote-a", "ulid-quote-b"]) {
+      h.quotes.rows.push({
+        id,
+        organizationId: ORG,
+        conversationId,
+        draftRevisionId: null,
+        status: "sent",
+        tokenHash: `hash(${id})`,
+        lines: [],
+        assumptions: [],
+        currency: "AUD",
+        subtotalMinor: 0,
+        taxMinor: 0,
+        totalMinor: 0,
+        priceListVersion: "pl-1",
+        validUntil: "2025-07-01T00:00:00.000Z",
+        sentAt: NOW,
+        decidedAt: null,
+        decision: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    }
+    h.messages.rows.push(outboundFixture());
+    for (const intent of ["accept", "change", "unclear"] as const) {
+      h.classifier.script({
+        ...classificationOf("quote_reply"),
+        quoteReply: { intent },
+      });
+      const result = await h.receive.run(
+        email({
+          sourceMessageId: `src-qr-${intent}`,
+          messageId: `<qr-${intent}@customer.example>`,
+          inReplyTo: "<quote-1@harbourandpine.example>",
+        }),
+      );
+      // Multiple candidates: even a clear accept needs a human.
+      expect(result.processing).toBe("needs_human");
+      const revision = h.revisions.rows.at(-1);
+      expect(revision?.classification?.quoteReply?.candidateQuoteVersionIds)
+        .toEqual(["ulid-quote-a", "ulid-quote-b"]);
+    }
+  });
+
+  it("attachment-only mail with no usable text is needs_human in every lane (7.4)", async () => {
+    for (const lane of [
+      "faq",
+      "quote",
+      "service",
+      "complaint",
+      "quote_reply",
+    ] as const) {
+      const h = harness();
+      h.classifier.script(classificationOf(lane));
+      const result = await h.receive.run(
+        email({
+          text: "   ",
+          html: undefined,
+          attachments: [{ name: "scan.pdf", mime: "application/pdf", size: 10 }],
+        }),
+      );
+      expect(result.processing).toBe("needs_human");
+      const revision = h.revisions.rows[0];
+      expect(revision).toMatchObject({
+        status: "needs_human",
+        lane: null,
+        classification: null,
+      });
+      expect(revision?.summary).toContain("No usable text");
+      expect(h.drafts.rows).toHaveLength(0);
+    }
   });
 });
 

@@ -5,8 +5,14 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   UseGuards,
 } from "@nestjs/common";
+import {
+  CONFIRM_QUOTE_DECISION,
+  type ConfirmQuoteDecision,
+  type ConfirmQuoteDecisionOutcome,
+} from "../../../core/use-cases/confirm-quote-decision";
 import {
   REVIEW_DRAFT,
   type ReviewDraft,
@@ -20,37 +26,50 @@ import {
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
 import { validationError } from "./http-error";
-import { SessionGuard } from "./session.guard";
-
-/** The session guard authenticates an operator; audit rows name it. */
-const OPERATOR_ACTOR = "operator";
+import { operatorEmailOf, OperatorRequest, SessionGuard } from "./session.guard";
 
 interface DraftActionBody {
   action?: unknown;
   bodyText?: unknown;
 }
 
+interface QuoteDecisionBody {
+  quoteVersionId?: unknown;
+  decision?: unknown;
+}
+
 /**
- * Owner draft-review and take-over routes (PLAN.md slice 5):
+ * Owner thread routes (PLAN.md slices 5 and 7):
  * `POST /threads/:conversationId/drafts/:revisionId` with
- * `{ action: "edit" | "approve" | "discard" }` and
- * `POST /threads/:conversationId/take-over`. An unknown revision (or a
- * revision of another conversation) is 404; a malformed action is 422;
- * acting on a stale revision is 409 `stale_revision`.
+ * `{ action: "edit" | "approve" | "discard" }`,
+ * `POST /threads/:conversationId/take-over`, and
+ * `POST /threads/:conversationId/quote-decision` with
+ * `{ quoteVersionId, decision: "accept" | "decline" }` — the operator-side
+ * confirmation of a quote-reply email. An unknown revision (or a revision
+ * of another conversation) is 404; a malformed action is 422; acting on a
+ * stale revision is 409 `stale_revision`. Quote decisions: unknown version
+ * 404, not-the-open-sent-quote 409, already-decided-differently 409.
+ *
+ * Carried note 14: every audit-writing action passes the operator email the
+ * session guard resolved — never a generic "operator" string.
  */
 @Controller("threads")
 export class DraftsController {
   private readonly review: ReviewDraft;
   private readonly takeOverUseCase: TakeOverConversation;
+  private readonly confirmQuoteDecision: ConfirmQuoteDecision;
   private readonly config: ValidatedConfig;
 
   constructor(
     @Inject(REVIEW_DRAFT) review: ReviewDraft,
     @Inject(TAKE_OVER_CONVERSATION) takeOverUseCase: TakeOverConversation,
+    @Inject(CONFIRM_QUOTE_DECISION)
+    confirmQuoteDecision: ConfirmQuoteDecision,
     @Inject(CONFIG) config: ValidatedConfig,
   ) {
     this.review = review;
     this.takeOverUseCase = takeOverUseCase;
+    this.confirmQuoteDecision = confirmQuoteDecision;
     this.config = config;
   }
 
@@ -60,6 +79,7 @@ export class DraftsController {
     @Param("conversationId") conversationId: string,
     @Param("revisionId") revisionId: string,
     @Body() body: DraftActionBody,
+    @Req() request: OperatorRequest,
   ): Promise<ReviewedDraft> {
     const action = parseAction(body);
     const reviewed = await this.review.run(
@@ -67,7 +87,7 @@ export class DraftsController {
       conversationId,
       revisionId,
       action,
-      OPERATOR_ACTOR,
+      operatorEmailOf(request),
     );
     if (!reviewed) {
       throw new NotFoundException("No draft revision with that id.");
@@ -79,16 +99,48 @@ export class DraftsController {
   @UseGuards(SessionGuard)
   async takeOver(
     @Param("conversationId") conversationId: string,
+    @Req() request: OperatorRequest,
   ): Promise<{ automationPaused: true }> {
     const paused = await this.takeOverUseCase.run(
       this.config.organization.id,
       conversationId,
-      OPERATOR_ACTOR,
+      operatorEmailOf(request),
     );
     if (paused === undefined) {
       throw new NotFoundException("No conversation with that id.");
     }
     return { automationPaused: true };
+  }
+
+  @Post(":conversationId/quote-decision")
+  @UseGuards(SessionGuard)
+  async quoteDecision(
+    @Param("conversationId") conversationId: string,
+    @Body() body: QuoteDecisionBody,
+    @Req() request: OperatorRequest,
+  ): Promise<ConfirmQuoteDecisionOutcome> {
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      typeof body.quoteVersionId !== "string" ||
+      body.quoteVersionId === ""
+    ) {
+      throw validationError("quoteVersionId is required in the body.");
+    }
+    if (body.decision !== "accept" && body.decision !== "decline") {
+      throw validationError('decision must be "accept" or "decline".');
+    }
+    const outcome = await this.confirmQuoteDecision.run(
+      this.config.organization.id,
+      conversationId,
+      body.quoteVersionId,
+      body.decision,
+      operatorEmailOf(request),
+    );
+    if (outcome.kind === "unknown") {
+      throw new NotFoundException("No quote version with that id.");
+    }
+    return outcome;
   }
 }
 

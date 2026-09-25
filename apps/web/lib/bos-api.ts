@@ -205,6 +205,18 @@ export type Thread = {
     summary: string;
   };
   draft?: ThreadDraft;
+  /** Internal service note (slice 7): request, details, next owner action. */
+  serviceNote?: {
+    request: string;
+    supplied: string[];
+    missing: string[];
+    nextAction: string;
+  };
+  /** Quote-reply intent and candidate quote versions (slice 7). */
+  quoteReply?: {
+    intent: "accept" | "decline" | "change" | "unclear";
+    candidateQuoteVersionIds: string[];
+  };
   /** The conversation's open (prepared/sent) quote version (slice 6). */
   openQuote?: {
     quoteVersionId: string;

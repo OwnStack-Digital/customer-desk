@@ -105,6 +105,31 @@ export class GetThread {
             summary: latestRevision.summary ?? "",
           }
         : undefined,
+      // Slice 7 (task 7.1): the service lane's internal note, surfaced from
+      // the stored classification artifact. Internal only — no draft.
+      ...(latestRevision?.classification?.service
+        ? {
+            serviceNote: {
+              request: latestRevision.classification.service.request,
+              supplied: [...latestRevision.classification.service.supplied],
+              missing: [...latestRevision.classification.service.missing],
+              nextAction: latestRevision.classification.service.nextAction,
+            },
+          }
+        : {}),
+      // Slice 7 (task 7.3): the quote-reply intent and its candidate sent
+      // quote versions, for the owner's explicit confirm decision.
+      ...(latestRevision?.classification?.quoteReply
+        ? {
+            quoteReply: {
+              intent: latestRevision.classification.quoteReply.intent,
+              candidateQuoteVersionIds: [
+                ...(latestRevision.classification.quoteReply
+                  .candidateQuoteVersionIds ?? []),
+              ],
+            },
+          }
+        : {}),
       draft: threadDraft,
       ...(openQuote
         ? {

@@ -40,7 +40,15 @@ const SERVICE_WORDS = ["book", "reschedule", "cancel the", "move the"];
 const FAQ_WORDS = ["hours", "areas", "included", "how booking"];
 const NOISE_WORDS = ["mailer-daemon", "noreply", "unsubscribe"];
 
-/** Fake service artifact; internal note data only, never a draft. */
+/**
+ * Fake service artifact (slice 7): internal note data only, never a
+ * draft. Deterministic extraction, documented per the brief:
+ * - `request` = the trimmed subject when present, else the first sentence
+ *   (up to 120 characters) of the text body — the customer's ask.
+ * - `supplied`/`missing` are empty arrays: the fake has no detail
+ *   extraction capability, and nothing else is knowable deterministically.
+ * - `nextAction` is a fixed owner action string.
+ */
 const SERVICE_NOTE = {
   supplied: [] as string[],
   missing: [] as string[],
@@ -58,6 +66,7 @@ export class FakeClassifier implements ClassifierPort {
       .join("\n")
       .toLowerCase();
     const subject = input.email.subject ?? "";
+    const ask = { subject: input.email.subject, text: input.email.text };
 
     // Rule 1: subject prefix wins. `fail` throws; `low` forces low
     // confidence on whatever the rest of the subject would be, else other.
@@ -68,47 +77,48 @@ export class FakeClassifier implements ClassifierPort {
     }
     if (prefix) {
       const lane = PREFIXES[prefix];
-      return this.classificationFor(lane, haystack, forcedLow);
+      return this.classificationFor(lane, haystack, forcedLow, ask);
     }
 
     // Rule 2: complaint words win over every other lane.
     if (COMPLAINT_WORDS.some((word) => contains(haystack, word))) {
-      return this.classificationFor("complaint", haystack, forcedLow);
+      return this.classificationFor("complaint", haystack, forcedLow, ask);
     }
 
     // Rule 3: reply to a stored outbound quote message.
     if (input.repliedToOutboundQuote) {
-      return this.classificationFor("quote_reply", haystack, forcedLow);
+      return this.classificationFor("quote_reply", haystack, forcedLow, ask);
     }
 
     // Rule 4: quote words.
     if (QUOTE_WORDS.some((word) => contains(haystack, word))) {
-      return this.classificationFor("quote", haystack, forcedLow);
+      return this.classificationFor("quote", haystack, forcedLow, ask);
     }
 
     // Rule 5: service words.
     if (SERVICE_WORDS.some((word) => contains(haystack, word))) {
-      return this.classificationFor("service", haystack, forcedLow);
+      return this.classificationFor("service", haystack, forcedLow, ask);
     }
 
     // Rule 6: FAQ words, selecting fact ids whose KB tags match.
     if (FAQ_WORDS.some((word) => contains(haystack, word))) {
-      return this.classificationFor("faq", haystack, forcedLow);
+      return this.classificationFor("faq", haystack, forcedLow, ask);
     }
 
     // Rule 7: noise.
     if (NOISE_WORDS.some((word) => contains(haystack, word))) {
-      return this.classificationFor("noise", haystack, forcedLow);
+      return this.classificationFor("noise", haystack, forcedLow, ask);
     }
 
     // Rule 8: other at low confidence.
-    return this.classificationFor("other", haystack, true);
+    return this.classificationFor("other", haystack, true, ask);
   }
 
   private classificationFor(
     lane: Lane,
     haystack: string,
     low: boolean,
+    ask: { subject?: string; text?: string },
   ): Classification {
     const confidence = low ? "low" : "high";
     switch (lane) {
@@ -138,7 +148,7 @@ export class FakeClassifier implements ClassifierPort {
           lane,
           confidence,
           service: {
-            request: requestOf(haystack),
+            request: requestOf(ask),
             ...SERVICE_NOTE,
           },
           summary: "Service request",
@@ -249,11 +259,19 @@ export class FakeClassifier implements ClassifierPort {
   }
 }
 
-/** Subject line (or first text line) as the service request note. */
-function requestOf(haystack: string): string {
-  const lines = haystack.split("\n").filter((line) => line.trim() !== "");
-  const line = lines[0] ?? "";
-  return line.trim().slice(0, 120);
+/**
+ * The service note's `request` slot (documented slice-7 extraction): the
+ * trimmed subject when present, else the first sentence of the text body
+ * (up to 120 characters). The customer's ask, verbatim — never invented.
+ */
+function requestOf(ask: { subject?: string; text?: string }): string {
+  const subject = ask.subject?.trim();
+  if (subject !== undefined && subject !== "") {
+    return subject.slice(0, 120);
+  }
+  const firstSentence = (ask.text ?? "").split(/[.!\n]/)[0] ?? "";
+  const trimmed = firstSentence.trim();
+  return trimmed.slice(0, 120);
 }
 
 /**

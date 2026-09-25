@@ -258,17 +258,47 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
     return rows.length;
   }
 
+  async findSentByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    const rows =
+      this.client.dialect === "sqlite"
+        ? await this.sqlite()
+            .select()
+            .from(sqliteQuoteVersions)
+            .where(
+              and(
+                eq(sqliteQuoteVersions.organizationId, organizationId),
+                eq(sqliteQuoteVersions.conversationId, conversationId),
+                eq(sqliteQuoteVersions.status, "sent"),
+              ),
+            )
+        : await this.postgres()
+            .select()
+            .from(pgQuoteVersions)
+            .where(
+              and(
+                eq(pgQuoteVersions.organizationId, organizationId),
+                eq(pgQuoteVersions.conversationId, conversationId),
+                eq(pgQuoteVersions.status, "sent"),
+              ),
+            );
+    return rows.map((row) => this.toQuote(row));
+  }
+
   async decide(
     organizationId: string,
     quoteVersionId: string,
     decision: QuoteDecision,
     decidedAt: string,
+    updatedAt: string,
   ): Promise<boolean> {
     const status = decision === "accept" ? "accepted" : "declined";
     if (this.client.dialect === "sqlite") {
       const rows = await this.sqlite()
         .update(sqliteQuoteVersions)
-        .set({ status, decision, decidedAt })
+        .set({ status, decision, decidedAt, updatedAt })
         .where(
           and(
             eq(sqliteQuoteVersions.organizationId, organizationId),
@@ -281,7 +311,7 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
     }
     const rows = await this.postgres()
       .update(pgQuoteVersions)
-      .set({ status, decision, decidedAt })
+      .set({ status, decision, decidedAt, updatedAt })
       .where(
         and(
           eq(pgQuoteVersions.organizationId, organizationId),

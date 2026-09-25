@@ -103,6 +103,10 @@ import {
   RecordQuoteDecision,
 } from "../../../core/use-cases/record-quote-decision";
 import {
+  CONFIRM_QUOTE_DECISION,
+  ConfirmQuoteDecision,
+} from "../../../core/use-cases/confirm-quote-decision";
+import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
 } from "../../../core/use-cases/retry-message-processing";
@@ -546,6 +550,22 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         CLOCK,
         UNIT_OF_WORK,
         ID_GENERATOR,
+      ],
+    },
+    {
+      provide: CONFIRM_QUOTE_DECISION,
+      useFactory: (
+        quotes: QuoteVersionRepository,
+        unitOfWork: UnitOfWork,
+        ids: IdGenerator,
+        clock: Clock,
+      ): ConfirmQuoteDecision =>
+        new ConfirmQuoteDecision({ quotes, unitOfWork, ids, clock }),
+      inject: [
+        QUOTE_VERSION_REPOSITORY,
+        UNIT_OF_WORK,
+        ID_GENERATOR,
+        CLOCK,
       ],
     },
     {

@@ -171,6 +171,74 @@ export default async function ThreadPage({
               ) : null}
             </div>
           ) : null}
+          {result.serviceNote ? (
+            <section
+              style={{
+                margin: "0.75rem 0 0",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #b08900",
+                borderRadius: "8px",
+                background: "#fffbee",
+                fontSize: "0.85rem",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "0.9rem",
+                  margin: "0 0 0.35rem",
+                  color: "#8a6d00",
+                }}
+              >
+                Service note (internal — no auto-reply)
+              </h2>
+              <p style={{ margin: 0, wordBreak: "break-word" }}>
+                Request: {result.serviceNote.request}
+              </p>
+              {result.serviceNote.supplied.length > 0 ? (
+                <p style={{ margin: "0.25rem 0 0", color: "#555" }}>
+                  Supplied: {result.serviceNote.supplied.join(", ")}
+                </p>
+              ) : null}
+              {result.serviceNote.missing.length > 0 ? (
+                <p style={{ margin: "0.25rem 0 0", color: "#555" }}>
+                  Missing: {result.serviceNote.missing.join(", ")}
+                </p>
+              ) : null}
+              <p style={{ margin: "0.25rem 0 0" }}>
+                Next action: {result.serviceNote.nextAction}
+              </p>
+            </section>
+          ) : null}
+          {result.quoteReply ? (
+            <section
+              style={{
+                margin: "0.75rem 0 0",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #5b3fa8",
+                borderRadius: "8px",
+                background: "#f4f1fb",
+                fontSize: "0.85rem",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "0.9rem",
+                  margin: "0 0 0.35rem",
+                  color: "#432892",
+                }}
+              >
+                Quote reply (not recorded until confirmed)
+              </h2>
+              <p style={{ margin: 0 }}>
+                Customer intent: {result.quoteReply.intent}
+              </p>
+              <p style={{ margin: "0.25rem 0 0", wordBreak: "break-word" }}>
+                {result.quoteReply.candidateQuoteVersionIds.length === 1
+                  ? `Candidate quote: ${result.quoteReply.candidateQuoteVersionIds[0]}`
+                  : `Candidates: ${result.quoteReply.candidateQuoteVersionIds.length}`}
+              </p>
+            </section>
+          ) : null}
           {result.draft ? (
             <section
               style={{

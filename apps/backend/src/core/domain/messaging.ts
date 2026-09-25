@@ -138,7 +138,10 @@ export interface ThreadDraft {
 /** Thread JSON shape. `processing` is the latest revision of the
  * conversation's latest message (slice 3); `draft` is the conversation's
  * newest proposed or approved draft (slice 4); `openQuote` is the
- * conversation's open quote version (slice 6). */
+ * conversation's open quote version (slice 6); `serviceNote` is the
+ * service lane's internal note (slice 7, PLAN shape); `quoteReply` is
+ * the quote-reply lane's intent and candidate quote versions (slice 7,
+ * brief-sanctioned small section for the owner's confirm decision). */
 export interface Thread {
   readonly conversation: {
     readonly id: string;
@@ -153,6 +156,19 @@ export interface Thread {
     readonly summary: string;
   };
   readonly draft?: ThreadDraft;
+  /** Internal service note (PLAN.md `serviceNote` shape, slice 7). */
+  readonly serviceNote?: {
+    readonly request: string;
+    readonly supplied: readonly string[];
+    readonly missing: readonly string[];
+    readonly nextAction: string;
+  };
+  /** Quote-reply intent and the sent quote versions it may refer to
+   * (slice 7). Empty candidates mean a human item: nothing to confirm. */
+  readonly quoteReply?: {
+    readonly intent: "accept" | "decline" | "change" | "unclear";
+    readonly candidateQuoteVersionIds: readonly string[];
+  };
   /** The conversation's newest `prepared`/`sent` quote version, if any. */
   readonly openQuote?: {
     readonly quoteVersionId: string;

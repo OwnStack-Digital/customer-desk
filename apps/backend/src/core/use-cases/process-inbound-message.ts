@@ -1,5 +1,10 @@
 import type { DraftRevision } from "../domain/drafting";
-import { buildFaqBody, cleanWording, compareFactIds } from "../domain/drafting";
+import {
+  buildFaqBody,
+  cleanWording,
+  COMPLAINT_DRAFT_BODY,
+  compareFactIds,
+} from "../domain/drafting";
 import type { StoredMessage } from "../domain/messaging";
 import { buildQuote } from "../domain/pricing";
 import type {
@@ -73,6 +78,16 @@ const NO_USABLE_TEXT_SUMMARY =
  * processing creates and supersedes nothing — classification and
  * human/complaint items are still recorded for every inbound mail, and a
  * would-be machine draft becomes `needs_human`: the operator replies.
+ *
+ * Slice 7: the service lane stores its internal note on the classification
+ * artifact (never a draft). The complaint lane records one optional fixed
+ * `proposed` draft — exactly `COMPLAINT_DRAFT_BODY`, no model apology, no
+ * greeting/closing — which still needs approval before any send. The
+ * quote-reply lane stores the conversation's sent quote versions at that
+ * time as `candidateQuoteVersionIds` plus the extracted intent on the
+ * artifact, and never calls `RecordQuoteDecision`: `accept`/`decline` with
+ * exactly one candidate is a `ready` owner action item; everything else
+ * (`change`, `unclear`, zero, or multiple candidates) is `needs_human`.
  */
 export class ProcessInboundMessage {
   constructor(private readonly deps: ProcessInboundMessageDeps) {}
@@ -143,10 +158,14 @@ export class ProcessInboundMessage {
     }
 
     try {
-      const classification = await this.classify(message);
+      let classification = await this.classify(message);
       let outcome = outcomeOf(classification);
       let summary = classification.summary;
-      if (classification.lane === "faq" || classification.lane === "quote") {
+      if (
+        classification.lane === "faq" ||
+        classification.lane === "quote" ||
+        classification.lane === "complaint"
+      ) {
         const conversation = await this.deps.conversations.findById(
           organizationId,
           message.conversationId,
@@ -162,7 +181,7 @@ export class ProcessInboundMessage {
           }
           // Task 4.2: the FAQ lane records one `proposed` draft revision.
           await this.insertFaqDraft(organizationId, message, classification);
-        } else {
+        } else if (classification.lane === "quote") {
           // Slice 6: price the extracted request in code; unpriceable
           // work parks with a human — it never produces a draft.
           const priced = buildQuote(this.deps.priceList.getPriceList(), {
@@ -174,6 +193,36 @@ export class ProcessInboundMessage {
           } else {
             await this.insertQuoteDraft(organizationId, message, priced);
           }
+        } else {
+          // Slice 7 (task 7.2): the complaint's optional fixed draft —
+          // exactly one sentence, no model apology, no wrapper wording.
+          // Nothing ever sends it without approval.
+          await this.insertComplaintDraft(organizationId, message);
+        }
+      } else if (classification.lane === "quote_reply") {
+        // Slice 7 (task 7.3): store the candidate sent quote versions of
+        // this conversation at processing time plus the intent. Processing
+        // never records the decision — the operator confirms it.
+        const candidates = await this.deps.quotes.findSentByConversation(
+          organizationId,
+          message.conversationId,
+        );
+        classification = {
+          ...classification,
+          quoteReply: {
+            intent: classification.quoteReply?.intent ?? "unclear",
+            candidateQuoteVersionIds: candidates.map((quote) => quote.id),
+          },
+        };
+        const replyIntent = classification.quoteReply?.intent;
+        if (
+          (replyIntent !== "accept" && replyIntent !== "decline") ||
+          candidates.length !== 1
+        ) {
+          // `change`/`unclear`, or no/multiple candidate quotes: a human
+          // resolves it. A clear accept/decline with one candidate is the
+          // `ready` owner action item.
+          outcome = "needs_human";
         }
       }
       await this.deps.revisions.completeRevision(revision.id, {
@@ -317,6 +366,41 @@ export class ProcessInboundMessage {
         now,
       ),
     );
+  }
+
+  /**
+   * The complaint lane's optional fixed draft (task 7.2): one `proposed`
+   * revision whose body is exactly `COMPLAINT_DRAFT_BODY` — no model
+   * apology, no greeting or closing, nothing else. Like every draft it
+   * requires explicit approval; there is no send-without-approval path.
+   */
+  private async insertComplaintDraft(
+    organizationId: string,
+    message: StoredMessage,
+  ): Promise<void> {
+    // Draft-replacement policy (slice 5), same as the other lanes.
+    await this.deps.drafts.supersedeProcessingProposed(
+      organizationId,
+      message.conversationId,
+    );
+    const now = this.deps.clock.now().toISOString();
+    const draft: DraftRevision = {
+      id: this.deps.ids.nextId(),
+      organizationId,
+      conversationId: message.conversationId,
+      messageId: message.id,
+      status: "proposed",
+      origin: "processing",
+      bodyText: COMPLAINT_DRAFT_BODY,
+      factIds: [],
+      knowledgeBaseVersion: null,
+      assumptions: [],
+      outboundMessageId: null,
+      quoteVersionId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.deps.drafts.insertDraft(draft);
   }
 
   /**

@@ -46,6 +46,7 @@ import type {
 import { GetThread } from "./get-thread";
 import { ListInbox } from "./list-inbox";
 import { ListOutbox } from "./list-outbox";
+import { ConfirmQuoteDecision } from "./confirm-quote-decision";
 import { ProcessInboundMessage } from "./process-inbound-message";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
 import { GetPublicQuote, RecordQuoteDecision } from "./record-quote-decision";
@@ -237,6 +238,20 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
     );
   }
 
+  findSentByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    return Promise.resolve(
+      this.rows.filter(
+        (row) =>
+          row.organizationId === organizationId &&
+          row.conversationId === conversationId &&
+          row.status === "sent",
+      ),
+    );
+  }
+
   markSent(
     organizationId: string,
     quoteVersionId: string,
@@ -287,6 +302,7 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
     quoteVersionId: string,
     decision: QuoteDecision,
     decidedAt: string,
+    updatedAt: string,
   ): Promise<boolean> {
     const row = this.row(organizationId, quoteVersionId);
     if (row.status !== "sent") {
@@ -296,6 +312,8 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
       status: decision === "accept" ? "accepted" : "declined",
       decision,
       decidedAt,
+      // Carried note 17: the decision moves `updated_at` too.
+      updatedAt,
     });
     return Promise.resolve(true);
   }
@@ -810,6 +828,12 @@ export function harness() {
     unitOfWork,
     ids,
   });
+  const confirmQuoteDecision = new ConfirmQuoteDecision({
+    quotes,
+    unitOfWork,
+    ids,
+    clock,
+  });
   return {
     conversations,
     messages,
@@ -827,6 +851,7 @@ export function harness() {
     tokenHasher,
     getPublicQuote,
     recordQuoteDecision,
+    confirmQuoteDecision,
     processing,
     receive,
     listInbox,

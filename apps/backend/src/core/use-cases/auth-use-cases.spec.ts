@@ -63,6 +63,11 @@ class FakeCredentials implements OperatorCredentialRepository {
       this.rows.filter((row) => row.organizationId === organizationId).length,
     );
   }
+  listByOrganization(organizationId: string) {
+    return Promise.resolve(
+      this.rows.filter((row) => row.organizationId === organizationId),
+    );
+  }
 }
 
 class FakeSessions implements SessionRepository {

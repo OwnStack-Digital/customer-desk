@@ -50,17 +50,25 @@ export class DrizzleOperatorCredentialRepository
   }
 
   async count(organizationId: string): Promise<number> {
+    return (await this.listByOrganization(organizationId)).length;
+  }
+
+  async listByOrganization(
+    organizationId: string,
+  ): Promise<readonly OperatorCredential[]> {
     const rows =
       this.client.dialect === "sqlite"
         ? await this.sqlite()
-            .select({ id: sqliteOperatorCredentials.id })
+            .select()
             .from(sqliteOperatorCredentials)
-            .where(eq(sqliteOperatorCredentials.organizationId, organizationId))
+            .where(
+              eq(sqliteOperatorCredentials.organizationId, organizationId),
+            )
         : await this.postgres()
-            .select({ id: pgOperatorCredentials.id })
+            .select()
             .from(pgOperatorCredentials)
             .where(eq(pgOperatorCredentials.organizationId, organizationId));
-    return rows.length;
+    return rows;
   }
 
   private sqlite(): SqliteDb {
