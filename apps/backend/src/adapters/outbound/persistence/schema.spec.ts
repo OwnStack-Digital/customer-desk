@@ -2,8 +2,12 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import {
+  pgConversations,
+  pgMessages,
   pgOperatorCredentials,
   pgOperatorSessions,
+  sqliteConversations,
+  sqliteMessages,
   sqliteOperatorCredentials,
   sqliteOperatorSessions,
 } from "./schema";
@@ -13,6 +17,7 @@ interface TableShape {
   columns: string[];
   primaryKeys: string[];
   uniqueNames: string[];
+  indexNames: string[];
 }
 
 function pgShape(table: Parameters<typeof getTableConfig>[0]): TableShape {
@@ -28,6 +33,7 @@ function pgShape(table: Parameters<typeof getTableConfig>[0]): TableShape {
       .map((constraint) => constraint.name)
       .filter((name): name is string => typeof name === "string")
       .sort(),
+    indexNames: config.indexes.map((index) => index.name).sort(),
   };
 }
 
@@ -47,6 +53,7 @@ function sqliteShape(
       .map((index) => index.config.name)
       .filter((name): name is string => typeof name === "string")
       .sort(),
+    indexNames: config.indexes.map((index) => index.config.name).sort(),
   };
 }
 
@@ -62,5 +69,13 @@ describe("pg/sqlite schema parity", () => {
     expect(sqliteShape(sqliteOperatorSessions)).toEqual(
       pgShape(pgOperatorSessions),
     );
+  });
+
+  it("conversations matches", () => {
+    expect(sqliteShape(sqliteConversations)).toEqual(pgShape(pgConversations));
+  });
+
+  it("messages matches", () => {
+    expect(sqliteShape(sqliteMessages)).toEqual(pgShape(pgMessages));
   });
 });

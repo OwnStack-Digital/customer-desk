@@ -1,5 +1,16 @@
-import { pgTable, text, unique } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import {
+  boolean,
+  index as pgIndex,
+  jsonb,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex as pgUniqueIndex,
+} from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
   sqliteTable,
   text as sqliteText,
   uniqueIndex,
@@ -63,5 +74,116 @@ export const sqliteOperatorSessions = sqliteTable(
   },
   (table) => [
     uniqueIndex("operator_sessions_token_hash_unique").on(table.tokenHash),
+  ],
+);
+
+/**
+ * Slice 2: conversations and messages. Addressing lists, `references`, and
+ * `attachments` are JSON columns: jsonb on Postgres, text JSON on SQLite.
+ */
+export const sqliteConversations = sqliteTable(
+  "conversations",
+  {
+    id: sqliteText("id").primaryKey(),
+    organizationId: sqliteText("organization_id").notNull(),
+    mailboxId: sqliteText("mailbox_id").notNull(),
+    fromAddress: sqliteText("from_address").notNull(),
+    fromName: sqliteText("from_name"),
+    subject: sqliteText("subject"),
+    automationPaused: integer("automation_paused", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    createdAt: sqliteText("created_at").notNull(),
+    updatedAt: sqliteText("updated_at").notNull(),
+  },
+  (table) => [index("conversations_organization_idx").on(table.organizationId)],
+);
+
+export const sqliteMessages = sqliteTable(
+  "messages",
+  {
+    id: sqliteText("id").primaryKey(),
+    organizationId: sqliteText("organization_id").notNull(),
+    mailboxId: sqliteText("mailbox_id").notNull(),
+    conversationId: sqliteText("conversation_id")
+      .notNull()
+      .references(() => sqliteConversations.id),
+    direction: sqliteText("direction").notNull(),
+    sourceMessageId: sqliteText("source_message_id").notNull(),
+    messageId: sqliteText("message_id"),
+    inReplyTo: sqliteText("in_reply_to"),
+    references: sqliteText("references").$type<string[]>(),
+    fromAddress: sqliteText("from_address").notNull(),
+    fromName: sqliteText("from_name"),
+    to: sqliteText("to").$type<string[]>(),
+    cc: sqliteText("cc").$type<string[]>(),
+    replyTo: sqliteText("reply_to"),
+    subject: sqliteText("subject"),
+    text: sqliteText("text"),
+    html: sqliteText("html"),
+    attachments: sqliteText("attachments").$type<unknown[]>(),
+    receivedAt: sqliteText("received_at").notNull(),
+    sentAt: sqliteText("sent_at"),
+  },
+  (table) => [
+    index("messages_conversation_idx").on(table.conversationId),
+    // Dedupe invariant: only inbound rows are unique on the source pair.
+    uniqueIndex("messages_inbound_source_unique")
+      .on(table.mailboxId, table.sourceMessageId)
+      .where(sql`direction = 'inbound'`),
+  ],
+);
+
+export const pgConversations = pgTable(
+  "conversations",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    // Customer identity snapshot; there is no contact table in v3.
+    fromAddress: text("from_address").notNull(),
+    fromName: text("from_name"),
+    subject: text("subject"),
+    automationPaused: boolean("automation_paused").notNull().default(false),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    pgIndex("conversations_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const pgMessages = pgTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => pgConversations.id),
+    direction: text("direction").notNull(),
+    sourceMessageId: text("source_message_id").notNull(),
+    messageId: text("message_id"),
+    inReplyTo: text("in_reply_to"),
+    references: jsonb("references").$type<string[]>(),
+    fromAddress: text("from_address").notNull(),
+    fromName: text("from_name"),
+    to: jsonb("to").$type<string[]>(),
+    cc: jsonb("cc").$type<string[]>(),
+    replyTo: text("reply_to"),
+    subject: text("subject"),
+    text: text("text"),
+    html: text("html"),
+    attachments: jsonb("attachments").$type<unknown[]>(),
+    receivedAt: text("received_at").notNull(),
+    sentAt: text("sent_at"),
+  },
+  (table) => [
+    pgIndex("messages_conversation_idx").on(table.conversationId),
+    // Dedupe invariant: only inbound rows are unique on the source pair.
+    pgUniqueIndex("messages_inbound_source_unique")
+      .on(table.mailboxId, table.sourceMessageId)
+      .where(sql`direction = 'inbound'`),
   ],
 );
