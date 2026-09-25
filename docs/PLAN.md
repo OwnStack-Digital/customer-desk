@@ -344,11 +344,11 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 3.
 
-- [ ] **4.1** Migration: `draft_revisions` (quote columns nullable until slice 6).
-- [ ] **4.2** `ReviewDraft` is not required yet, but creating a `proposed` FAQ revision is. Store fact ids and knowledge-base version on the revision.
-- [ ] **4.3** Renderer builds the body from blocks. Drafter wording is optional and dropped when it violates the digit/currency/promise checks.
-- [ ] **4.4** No supporting fact → `needs_human` and a body that says what is unknown. Do not answer from model knowledge.
-- [ ] **4.5** Thread UI shows the proposed FAQ body and the fact ids used.
+- [x] **4.1** Migration: `draft_revisions` (quote columns nullable until slice 6).
+- [x] **4.2** `ReviewDraft` is not required yet, but creating a `proposed` FAQ revision is. Store fact ids and knowledge-base version on the revision.
+- [x] **4.3** Renderer builds the body from blocks. Drafter wording is optional and dropped when it violates the digit/currency/promise checks.
+- [x] **4.4** No supporting fact → `needs_human` and a body that says what is unknown. Do not answer from model knowledge.
+- [x] **4.5** Thread UI shows the proposed FAQ body and the fact ids used.
 
 **Acceptance:** a draft cannot contain a factual sentence that is absent from the selected blocks. Knowledge-base version is persisted. HTML-only mail with no text becomes `needs_human`.
 
