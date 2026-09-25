@@ -62,6 +62,39 @@ export class DrizzleMessageRepository implements MessageRepository {
       : undefined;
   }
 
+  /** The stored message with that id, if any (processing reads). */
+  async findById(
+    organizationId: string,
+    messageId: string,
+  ): Promise<StoredMessage | undefined> {
+    const rows =
+      this.client.dialect === "sqlite"
+        ? await this.sqlite()
+            .select()
+            .from(sqliteMessages)
+            .where(
+              and(
+                eq(sqliteMessages.organizationId, organizationId),
+                eq(sqliteMessages.id, messageId),
+              ),
+            )
+        : await this.postgres()
+            .select()
+            .from(pgMessages)
+            .where(
+              and(
+                eq(pgMessages.organizationId, organizationId),
+                eq(pgMessages.id, messageId),
+              ),
+            );
+    const row = rows[0];
+    return row
+      ? this.client.dialect === "sqlite"
+        ? sqliteToMessage(row as SqliteRow)
+        : pgToMessage(row as PgRow)
+      : undefined;
+  }
+
   async findByRfcMessageId(
     mailboxId: string,
     rfcMessageId: string,
