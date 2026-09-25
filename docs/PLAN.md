@@ -282,15 +282,15 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** nothing.
 
-- [ ] **0.1** Bun workspace root: `apps/backend`, `apps/web`, TypeScript strict, `tsconfig` project references or standalone app configs. Scripts: `dev`, `typecheck`, `test`, `lint`.
-- [ ] **0.2** Biome at the repo root. One format command. No ESLint, no Prettier.
-- [ ] **0.3** `apps/backend` Nest shell with only `AppModule`, `PersistenceModule`, `ConfigModule`, `AiModule`, `EmailModule`, `ApiModule`. Health route `GET /health`. Core folder exists and is empty of framework imports.
-- [ ] **0.4** `scripts/architecture-check.ts`: fail if `apps/backend/src/core` imports `adapters`, `infrastructure`, `apps/web`, `@nestjs/*`, `drizzle-orm`, `fs`, `node:fs`, `zod`, or a vendor SDK. Wire it into `bun run check`.
-- [ ] **0.5** Docker Compose Postgres for local dev. Document ports in a root README. `.env.example` lists the env table above with no secrets filled.
-- [ ] **0.6** Drizzle client selected by `DB_DIALECT` inside `PersistenceModule` only. Migration runner command. No tables yet.
-- [ ] **0.7** Config loader in `ConfigModule`: read the four JSON files, validate, expose ports. Boot refuses missing fields, currency mismatch between org and price list, tax mode other than `none` without `taxRateBps`, or zero rules. Sample Harbour & Pine files committed.
-- [ ] **0.8** `apps/web` Next App Router shell with a server-only `lib/bos-api.ts` that reads `BOS_API_URL`. Placeholder home page. No backend imports.
-- [ ] **0.9** Structured logger in infrastructure with a redaction test for `authorization`, `cookie`, `password`, `token`, and raw email body keys.
+- [x] **0.1** Bun workspace root: `apps/backend`, `apps/web`, TypeScript strict, `tsconfig` project references or standalone app configs. Scripts: `dev`, `typecheck`, `test`, `lint`.
+- [x] **0.2** Biome at the repo root. One format command. No ESLint, no Prettier.
+- [x] **0.3** `apps/backend` Nest shell with only `AppModule`, `PersistenceModule`, `ConfigModule`, `AiModule`, `EmailModule`, `ApiModule`. Health route `GET /health`. Core folder exists and is empty of framework imports.
+- [x] **0.4** `scripts/architecture-check.ts`: fail if `apps/backend/src/core` imports `adapters`, `infrastructure`, `apps/web`, `@nestjs/*`, `drizzle-orm`, `fs`, `node:fs`, `zod`, or a vendor SDK. Wire it into `bun run check`.
+- [x] **0.5** Docker Compose Postgres for local dev. Document ports in a root README. `.env.example` lists the env table above with no secrets filled.
+- [x] **0.6** Drizzle client selected by `DB_DIALECT` inside `PersistenceModule` only. Migration runner command. No tables yet.
+- [x] **0.7** Config loader in `ConfigModule`: read the four JSON files, validate, expose ports. Boot refuses missing fields, currency mismatch between org and price list, tax mode other than `none` without `taxRateBps`, or zero rules. Sample Harbour & Pine files committed.
+- [x] **0.8** `apps/web` Next App Router shell with a server-only `lib/bos-api.ts` that reads `BOS_API_URL`. Placeholder home page. No backend imports.
+- [x] **0.9** Structured logger in infrastructure with a redaction test for `authorization`, `cookie`, `password`, `token`, and raw email body keys.
 
 **Acceptance:** `bun run check` passes; moving the price-list currency fails boot; a deliberate `@nestjs/common` import under `core/` fails the architecture check.
 
