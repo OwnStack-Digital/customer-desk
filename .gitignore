@@ -4,4 +4,5 @@ dist/
 .env
 *.tsbuildinfo
 *.db
-coverage/.orchestration/
+coverage/
+.orchestration/

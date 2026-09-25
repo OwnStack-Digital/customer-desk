@@ -116,6 +116,15 @@ function harness() {
   return { clock, hasher, credentials, sessions, login, authenticate, logout };
 }
 
+async function failure(promise: Promise<unknown>): Promise<AuthError> {
+  try {
+    await promise;
+  } catch (error) {
+    return error as AuthError;
+  }
+  throw new Error("expected the call to fail");
+}
+
 async function seedOwner(credentials: FakeCredentials): Promise<void> {
   await credentials.create({
     id: "ulid-owner",
@@ -154,12 +163,10 @@ describe("Login", () => {
   it("returns the identical error shape for an unknown email", async () => {
     const h = harness();
     await seedOwner(h.credentials);
-    const wrongPasswordError = await h.login
-      .run(ORG, EMAIL, "wrong")
-      .catch((error: unknown) => error as AuthError);
-    const unknownEmailError = await h.login
-      .run(ORG, "nobody@example.test", PASSWORD)
-      .catch((error: unknown) => error as AuthError);
+    const wrongPasswordError = await failure(h.login.run(ORG, EMAIL, "wrong"));
+    const unknownEmailError = await failure(
+      h.login.run(ORG, "nobody@example.test", PASSWORD),
+    );
     expect(unknownEmailError).toBeInstanceOf(AuthError);
     expect(unknownEmailError.message).toBe(wrongPasswordError.message);
     expect(unknownEmailError.code).toBe(wrongPasswordError.code);

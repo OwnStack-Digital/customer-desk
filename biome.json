@@ -18,5 +18,10 @@
   "formatter": {
     "enabled": true,
     "indentStyle": "space"
+  },
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
   }
 }

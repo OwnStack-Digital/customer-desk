@@ -22,7 +22,9 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11",
     "@types/better-sqlite3": "^7.6.0",
+    "@types/express": "^5.0.6",
     "@types/supertest": "^7.2.1",
     "drizzle-kit": "^0.31.0",
     "supertest": "^7.3.0"

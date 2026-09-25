@@ -35,3 +35,6 @@ export class AuthenticateSession {
     return session;
   }
 }
+
+/** DI token (composition root only; the use case itself is framework-free). */
+export const AUTHENTICATE_SESSION = "AuthenticateSession";

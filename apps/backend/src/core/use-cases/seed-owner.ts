@@ -53,3 +53,6 @@ export class SeedOwner {
     return "seeded";
   }
 }
+
+/** DI token (composition root only; the use case itself is framework-free). */
+export const SEED_OWNER = "SeedOwner";

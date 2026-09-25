@@ -72,6 +72,7 @@ function listSourceFiles(dir: string): string[] {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...listSourceFiles(path));
+    } else if (/\.spec\.ts$/.test(entry.name)) {
     } else if (/\.(ts|tsx|mts|cts)$/.test(entry.name)) {
       files.push(path);
     }

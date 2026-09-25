@@ -75,3 +75,6 @@ export class Login {
     return { sessionToken, operator: { email }, expiresAt: session.expiresAt };
   }
 }
+
+/** DI token (composition root only; the use case itself is framework-free). */
+export const LOGIN = "Login";

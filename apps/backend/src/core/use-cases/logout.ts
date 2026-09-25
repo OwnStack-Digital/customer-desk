@@ -29,3 +29,6 @@ export class Logout {
     );
   }
 }
+
+/** DI token (composition root only; the use case itself is framework-free). */
+export const LOGOUT = "Logout";

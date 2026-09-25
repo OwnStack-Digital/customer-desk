@@ -6,30 +6,42 @@ import { defineConfig } from "drizzle-kit";
 // (ground rules). Anchored to this file: holds for src and dist alike.
 const backendRoot = resolve(__dirname, "..", "..", "..");
 
-const dialect = process.env.DB_DIALECT === "sqlite" ? "sqlite" : "postgresql";
+export type MigrationDialect = "postgresql" | "sqlite";
 
-// Slice 0 has no tables yet; `schema.ts` is empty on purpose. Tables land in
-// the slice that first writes them (see docs/PLAN.md "Tables").
+export function migrationDialect(env: NodeJS.ProcessEnv): MigrationDialect {
+  return env.DB_DIALECT === "sqlite" ? "sqlite" : "postgresql";
+}
+
+/**
+ * Postgres is the source of truth; SQLite mirrors it for tests. Each dialect
+ * generates into its own folder with its own journal, and the runner fails
+ * on a journal/dialect mismatch (carried review note 2).
+ */
+export function migrationsOutDir(dialect: MigrationDialect): string {
+  return resolve(backendRoot, "drizzle", "migrations", dialect);
+}
+
+const dialect = migrationDialect(process.env);
+
+const schema = resolve(
+  backendRoot,
+  "src/adapters/outbound/persistence/schema.ts",
+);
+
 export default defineConfig(
   dialect === "sqlite"
     ? {
         dialect: "sqlite",
-        schema: resolve(
-          backendRoot,
-          "src/adapters/outbound/persistence/schema.ts",
-        ),
-        out: resolve(backendRoot, "drizzle/migrations"),
+        schema,
+        out: migrationsOutDir("sqlite"),
         dbCredentials: {
           url: process.env.DATABASE_URL ?? "file:./bos.dev.db",
         },
       }
     : {
         dialect: "postgresql",
-        schema: resolve(
-          backendRoot,
-          "src/adapters/outbound/persistence/schema.ts",
-        ),
-        out: resolve(backendRoot, "drizzle/migrations"),
+        schema,
+        out: migrationsOutDir("postgresql"),
         dbCredentials: {
           url:
             process.env.DATABASE_URL ?? "postgres://bos:bos@127.0.0.1:5432/bos",
