@@ -88,7 +88,8 @@ describe("FAQ drafts (task 4.2)", () => {
 
   it("no drafts for the non-FAQ lanes", async () => {
     for (const lane of [
-      "complaint",
+      // The complaint lane gained its optional fixed draft in slice 7;
+      // it is covered (and contrasted) in the slice-7 specs.
       "service",
       "quote_reply",
       "noise",
