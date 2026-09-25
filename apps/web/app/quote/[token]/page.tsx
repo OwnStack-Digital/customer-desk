@@ -1,0 +1,244 @@
+import { BosApiError, bosApi, type PublicQuote } from "../../../lib/bos-api";
+import { acceptQuote, declineQuote } from "./actions";
+
+export const metadata = { title: "Your quote — BOS" };
+
+type QuoteLoad = PublicQuote | "not-found" | "error";
+
+async function loadQuote(token: string): Promise<QuoteLoad> {
+  try {
+    return await bosApi<PublicQuote>(`/public/quotes/${token}`);
+  } catch (error) {
+    if (error instanceof BosApiError && error.status === 404) {
+      return "not-found";
+    }
+    return "error";
+  }
+}
+
+function formatMinor(currency: string, amountMinor: number): string {
+  return `${currency} ${(amountMinor / 100).toFixed(2)}`;
+}
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleDateString("en-AU", { dateStyle: "medium" });
+}
+
+const buttonStyle = {
+  padding: "0.5rem 1rem",
+  borderRadius: "8px",
+  border: "1px solid #1a1a1a",
+  background: "#1a1a1a",
+  color: "#fff",
+  fontSize: "0.9rem",
+  cursor: "pointer",
+} as const;
+
+const secondaryButtonStyle = {
+  ...buttonStyle,
+  background: "#fff",
+  color: "#1a1a1a",
+} as const;
+
+const listStyle = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+} as const;
+
+export default async function QuotePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { token } = await params;
+  const { error } = await searchParams;
+  const result = await loadQuote(token);
+
+  return (
+    <main
+      style={{ maxWidth: "480px", margin: "0 auto", padding: "1.5rem 1rem" }}
+    >
+      {result === "not-found" ? (
+        <section>
+          <h1 style={{ fontSize: "1.2rem", margin: "0 0 0.5rem" }}>
+            Quote not found
+          </h1>
+          <p style={{ color: "#555" }}>
+            This link is unknown, expired, or no longer valid.
+          </p>
+        </section>
+      ) : result === "error" ? (
+        <p style={{ color: "#b00020" }}>
+          This quote is unavailable right now. Please try again in a moment.
+        </p>
+      ) : (
+        <section>
+          <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.25rem" }}>
+            {result.businessName}
+          </h1>
+          <p style={{ color: "#555", fontSize: "0.9rem", margin: 0 }}>
+            Your quote
+          </p>
+
+          {error ? (
+            <p
+              style={{
+                margin: "0.75rem 0 0",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #b00020",
+                borderRadius: "8px",
+                background: "#fff5f6",
+                color: "#b00020",
+                wordBreak: "break-word",
+              }}
+            >
+              {error}
+            </p>
+          ) : null}
+
+          {/* Status: only sent/accepted/declined are ever displayed; an
+              expired or superseded token is a 404 above. */}
+          {result.status === "accepted" ? (
+            <p
+              style={{
+                color: "#2e7d32",
+                fontWeight: 600,
+                margin: "0.75rem 0 0",
+              }}
+            >
+              You accepted this quote.
+            </p>
+          ) : result.status === "declined" ? (
+            <p
+              style={{ color: "#555", fontWeight: 600, margin: "0.75rem 0 0" }}
+            >
+              You declined this quote.
+            </p>
+          ) : (
+            <p style={{ color: "#555", margin: "0.75rem 0 0" }}>
+              Valid until {formatDate(result.validUntil)}.
+            </p>
+          )}
+
+          <ul style={{ ...listStyle, marginTop: "1rem" }}>
+            {result.lines.map((line) => (
+              <li
+                key={`${line.name}-${line.quantity ?? 1}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "0.75rem",
+                  padding: "0.4rem 0",
+                  borderBottom: "1px solid #eee",
+                  fontSize: "0.95rem",
+                }}
+              >
+                <span>
+                  {line.name}
+                  {line.quantity ? ` × ${line.quantity}` : ""}
+                </span>
+                <span style={{ whiteSpace: "nowrap" }}>
+                  {formatMinor(result.currency, line.amountMinor)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {result.assumptions.length > 0 ? (
+            <div style={{ marginTop: "0.75rem" }}>
+              <h2 style={{ fontSize: "0.9rem", margin: "0 0 0.25rem" }}>
+                Assumptions
+              </h2>
+              <ul style={{ ...listStyle, color: "#555", fontSize: "0.85rem" }}>
+                {result.assumptions.map((assumption) => (
+                  <li key={assumption} style={{ margin: "0.2rem 0" }}>
+                    {assumption}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <dl
+            style={{
+              margin: "1rem 0 0",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.25rem",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <dt style={{ color: "#555" }}>Subtotal</dt>
+              <dd style={{ margin: 0 }}>
+                {formatMinor(result.currency, result.subtotalMinor)}
+              </dd>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <dt style={{ color: "#555" }}>Tax</dt>
+              <dd style={{ margin: 0 }}>
+                {formatMinor(result.currency, result.taxMinor)}
+              </dd>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: 600,
+                borderTop: "1px solid #1a1a1a",
+                marginTop: "0.25rem",
+                paddingTop: "0.25rem",
+              }}
+            >
+              <dt>Total</dt>
+              <dd style={{ margin: 0 }}>
+                {formatMinor(result.currency, result.totalMinor)}
+              </dd>
+            </div>
+          </dl>
+
+          {/* Explicit form buttons — not links — so deciding requires an
+              intentional POST. Read-only once decided or expired. */}
+          {result.canDecide ? (
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                flexWrap: "wrap",
+                marginTop: "1.25rem",
+              }}
+            >
+              <form action={acceptQuote}>
+                <input type="hidden" name="token" value={token} />
+                <button type="submit" style={buttonStyle}>
+                  Accept quote
+                </button>
+              </form>
+              <form action={declineQuote}>
+                <input type="hidden" name="token" value={token} />
+                <button type="submit" style={secondaryButtonStyle}>
+                  Decline quote
+                </button>
+              </form>
+            </div>
+          ) : (
+            <p
+              style={{
+                marginTop: "1.25rem",
+                color: "#777",
+                fontSize: "0.85rem",
+              }}
+            >
+              This quote can no longer be decided from this link.
+            </p>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}

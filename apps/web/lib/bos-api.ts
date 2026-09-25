@@ -143,13 +143,16 @@ export const INBOX_FILTERS = ["all", "needs_human", "complaints"] as const;
 
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
-/** Draft section of the thread (slice 4): the proposed FAQ reply. */
+/** Draft section of the thread (slice 4; slice 6 adds quote totals). */
 export type ThreadDraft = {
   revisionId: string;
   status: "proposed" | "approved";
   bodyText: string;
   assumptions: string[];
   factIds?: string[];
+  /** Present only on a quote-linked draft: from the immutable snapshot. */
+  totalMinor?: number;
+  currency?: string;
 };
 
 /** Result of a review action: the draft revision the action left in place. */
@@ -202,4 +205,25 @@ export type Thread = {
     summary: string;
   };
   draft?: ThreadDraft;
+  /** The conversation's open (prepared/sent) quote version (slice 6). */
+  openQuote?: {
+    quoteVersionId: string;
+    status: string;
+    totalMinor: number;
+    currency: string;
+  };
+};
+
+/** PublicQuote from docs/PLAN.md (GET /public/quotes/:token, slice 6). */
+export type PublicQuote = {
+  businessName: string;
+  status: "sent" | "accepted" | "declined" | "superseded" | "expired";
+  currency: string;
+  lines: Array<{ name: string; quantity?: number; amountMinor: number }>;
+  assumptions: string[];
+  subtotalMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  validUntil: string;
+  canDecide: boolean;
 };
