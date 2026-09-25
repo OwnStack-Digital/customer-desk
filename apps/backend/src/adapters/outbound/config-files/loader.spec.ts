@@ -152,6 +152,21 @@ describe("loadConfig (fails closed)", () => {
     );
   });
 
+  it("refuses to load when org tax mode does not match the price list (note 1)", () => {
+    expectLoadFails(
+      makeConfigDir({
+        priceList: { ...samplePriceList, taxMode: "inclusive" },
+      }),
+      'does not match price-list.json tax mode "inclusive"',
+    );
+    expectLoadFails(
+      makeConfigDir({
+        organization: { ...sampleOrganization, taxMode: "none" },
+      }),
+      'does not match price-list.json tax mode "exclusive"',
+    );
+  });
+
   it("refuses a non-none tax mode without taxRateBps", () => {
     const { taxRateBps, ...withoutRate } = samplePriceList;
     expect(taxRateBps).toBeDefined();

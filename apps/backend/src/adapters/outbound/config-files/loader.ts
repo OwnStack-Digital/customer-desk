@@ -52,6 +52,13 @@ export function loadConfig(
       `organization.json currency ${organization.currency} does not match price-list.json currency ${priceList.currency}`,
     );
   }
+  // One tax mode per deployment (carried review note 1, slice 6): the
+  // org profile and the price list must agree, like the currency check.
+  if (organization.taxMode !== priceList.taxMode) {
+    throw new ConfigValidationError(
+      `organization.json tax mode "${organization.taxMode}" does not match price-list.json tax mode "${priceList.taxMode}"`,
+    );
+  }
   if (priceList.taxMode !== "none" && priceList.taxRateBps === undefined) {
     throw new ConfigValidationError(
       `price-list.json tax mode "${priceList.taxMode}" requires taxRateBps`,
