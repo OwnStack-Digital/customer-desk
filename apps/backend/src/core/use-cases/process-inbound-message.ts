@@ -1,5 +1,5 @@
 import type { DraftRevision } from "../domain/drafting";
-import { buildFaqBody } from "../domain/drafting";
+import { buildFaqBody, compareFactIds } from "../domain/drafting";
 import type { StoredMessage } from "../domain/messaging";
 import type {
   Classification,
@@ -9,6 +9,7 @@ import type {
 } from "../domain/processing";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
+import type { ConversationRepository } from "../ports/conversation-repository";
 import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { DrafterPort } from "../ports/drafter";
 import type { IdGenerator } from "../ports/id-generator";
@@ -18,6 +19,7 @@ import type { ProcessingRevisionRepository } from "../ports/processing-revision-
 
 export interface ProcessInboundMessageDeps {
   readonly messages: MessageRepository;
+  readonly conversations: ConversationRepository;
   readonly revisions: ProcessingRevisionRepository;
   readonly drafts: DraftRevisionRepository;
   readonly classifier: ClassifierPort;
@@ -46,6 +48,15 @@ const NO_USABLE_TEXT_SUMMARY =
  * unknown line instead — never an answer from model knowledge (the
  * drafter physically cannot add facts). HTML-only or attachments-only mail
  * is `needs_human` with no draft: there is nothing to ground on.
+ *
+ * Slice 5 draft-replacement policy: when processing produces a new machine
+ * draft for a conversation it first supersedes that conversation's origin
+ * `processing`, still-`proposed` drafts (untouched machine originals).
+ * Operator-authored, approved, discarded, and consumed revisions are
+ * never silently superseded. While the conversation is paused (take-over),
+ * processing creates and supersedes nothing — classification and
+ * human/complaint items are still recorded for every inbound mail, and a
+ * would-be machine draft becomes `needs_human`: the operator replies.
  */
 export class ProcessInboundMessage {
   constructor(private readonly deps: ProcessInboundMessageDeps) {}
@@ -166,10 +177,18 @@ export class ProcessInboundMessage {
     message: StoredMessage,
     classification: Classification,
   ): Promise<void> {
+    // Draft-replacement policy (slice 5): a new machine draft supersedes
+    // the conversation's untouched machine originals. Operator, approved,
+    // discarded, and consumed revisions are never touched here.
+    await this.deps.drafts.supersedeProcessingProposed(
+      organizationId,
+      message.conversationId,
+    );
     const knowledgeBase = this.deps.knowledgeBase.getKnowledgeBase();
-    // Fact-id order: the renderer sorts the blocks; the stored ids follow
-    // the same order so the body can be replayed from the facts.
-    const factIds = [...(classification.faqFactIds ?? [])].sort();
+    // Fact-id order (carried note 11): one shared code-unit comparator;
+    // the renderer sorts the blocks and the stored ids follow the same
+    // order so the body can be replayed from the facts.
+    const factIds = [...(classification.faqFactIds ?? [])].sort(compareFactIds);
     const blocks = knowledgeBase.blocks
       .filter((block) => factIds.includes(block.id))
       .map((block) => ({ id: block.id, text: block.text }));
@@ -188,6 +207,7 @@ export class ProcessInboundMessage {
       conversationId: message.conversationId,
       messageId: message.id,
       status: "proposed",
+      origin: "processing",
       bodyText,
       factIds,
       knowledgeBaseVersion: knowledgeBase.version,

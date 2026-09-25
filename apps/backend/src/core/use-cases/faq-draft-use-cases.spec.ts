@@ -210,6 +210,7 @@ describe("retry hardening (carried note 10)", () => {
     const racing = new RacingProcessingRevisions(winner);
     const loserProcessing = new ProcessInboundMessage({
       messages: h.messages,
+      conversations: h.conversations,
       revisions: racing,
       drafts: h.drafts,
       classifier: h.classifier,

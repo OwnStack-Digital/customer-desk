@@ -72,6 +72,36 @@ export class DrizzleConversationRepository implements ConversationRepository {
     }
   }
 
+  async setAutomationPaused(
+    organizationId: string,
+    conversationId: string,
+    paused: boolean,
+  ): Promise<boolean> {
+    const rows =
+      this.client.dialect === "sqlite"
+        ? await this.sqlite()
+            .update(sqliteConversations)
+            .set({ automationPaused: paused })
+            .where(
+              and(
+                eq(sqliteConversations.id, conversationId),
+                eq(sqliteConversations.organizationId, organizationId),
+              ),
+            )
+            .returning({ id: sqliteConversations.id })
+        : await this.postgres()
+            .update(pgConversations)
+            .set({ automationPaused: paused })
+            .where(
+              and(
+                eq(pgConversations.id, conversationId),
+                eq(pgConversations.organizationId, organizationId),
+              ),
+            )
+            .returning({ id: pgConversations.id });
+    return rows.length > 0;
+  }
+
   private sqlite(): SqliteDb {
     return this.client.open() as SqliteDb;
   }

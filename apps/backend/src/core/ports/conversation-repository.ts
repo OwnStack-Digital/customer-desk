@@ -18,6 +18,16 @@ export interface ConversationRepository {
    * request created but that ended up with no messages.
    */
   deleteById(organizationId: string, conversationId: string): Promise<void>;
+
+  /**
+   * Take-over flag (PLAN.md slice 5): pauses automatic draft replacement
+   * for the conversation. Returns false when the conversation is unknown.
+   */
+  setAutomationPaused(
+    organizationId: string,
+    conversationId: string,
+    paused: boolean,
+  ): Promise<boolean>;
 }
 
 export const CONVERSATION_REPOSITORY = "ConversationRepository";

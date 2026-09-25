@@ -17,6 +17,12 @@ import type {
   ProcessingRevision,
 } from "../domain/processing";
 import { ClassifierError } from "../domain/processing";
+import type {
+  AuditEvent,
+  OutboxEntry,
+  OutboxItem,
+} from "../domain/outbox";
+import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { ClassifierPort } from "../ports/classifier";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
@@ -26,11 +32,20 @@ import type { IdGenerator } from "../ports/id-generator";
 import type { KnowledgeBaseRepository } from "../ports/knowledge-base-repository";
 import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
+import type { OutboxRepository } from "../ports/outbox-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type {
+  TransactionScopedRepositories,
+  UnitOfWork,
+} from "../ports/unit-of-work";
 import { GetThread } from "./get-thread";
 import { ListInbox } from "./list-inbox";
+import { ListOutbox } from "./list-outbox";
 import { ProcessInboundMessage } from "./process-inbound-message";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
+import { ReviewDraft } from "./review-draft";
+import { SendApprovedDraft } from "./send-approved-draft";
+import { TakeOverConversation } from "./take-over-conversation";
 
 export const ORG = "org_harbour_pine";
 export const MAILBOX = "mb_main";
@@ -201,6 +216,75 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
     return Promise.resolve();
   }
 
+  findById(
+    organizationId: string,
+    revisionId: string,
+  ): Promise<DraftRevision | undefined> {
+    return Promise.resolve(
+      this.rows.find(
+        (row) =>
+          row.organizationId === organizationId && row.id === revisionId,
+      ),
+    );
+  }
+
+  supersede(organizationId: string, revisionId: string): Promise<void> {
+    const row = this.row(organizationId, revisionId);
+    Object.assign(row, { status: "superseded" as const });
+    return Promise.resolve();
+  }
+
+  supersedeProcessingProposed(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<number> {
+    let count = 0;
+    for (const row of this.rows) {
+      if (
+        row.organizationId === organizationId &&
+        row.conversationId === conversationId &&
+        row.origin === "processing" &&
+        row.status === "proposed"
+      ) {
+        Object.assign(row, { status: "superseded" as const });
+        count += 1;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  updateStatus(
+    organizationId: string,
+    revisionId: string,
+    from: "proposed" | "approved",
+    to: "approved" | "discarded",
+  ): Promise<boolean> {
+    const row = this.row(organizationId, revisionId);
+    if (row.status !== from) {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, { status: to });
+    return Promise.resolve(true);
+  }
+
+  consume(
+    organizationId: string,
+    revisionId: string,
+    outboundMessageId: string,
+    updatedAt: string,
+  ): Promise<boolean> {
+    const row = this.row(organizationId, revisionId);
+    if (row.status !== "approved" || row.outboundMessageId !== null) {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, {
+      status: "consumed" as const,
+      outboundMessageId,
+      updatedAt,
+    });
+    return Promise.resolve(true);
+  }
+
   findLatestByConversation(
     organizationId: string,
     conversationId: string,
@@ -217,6 +301,18 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
           left.id.localeCompare(right.id),
       );
     return Promise.resolve(rows.at(-1));
+  }
+
+  private row(organizationId: string, revisionId: string): DraftRevision {
+    const row = this.rows.find(
+      (candidate) =>
+        candidate.organizationId === organizationId &&
+        candidate.id === revisionId,
+    );
+    if (!row) {
+      throw new Error(`no draft revision ${revisionId}`);
+    }
+    return row;
   }
 }
 
@@ -255,6 +351,22 @@ export class FakeConversations implements ConversationRepository {
       this.rows.splice(index, 1);
     }
     return Promise.resolve();
+  }
+  setAutomationPaused(
+    organizationId: string,
+    conversationId: string,
+    paused: boolean,
+  ): Promise<boolean> {
+    const row = this.rows.find(
+      (candidate) =>
+        candidate.organizationId === organizationId &&
+        candidate.id === conversationId,
+    );
+    if (!row) {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, { automationPaused: paused });
+    return Promise.resolve(true);
   }
 }
 
@@ -347,12 +459,61 @@ export class FakeProfile implements OrganizationProfileRepository {
   }
 }
 
+export class FakeOutbox implements OutboxRepository {
+  readonly rows: OutboxEntry[] = [];
+
+  insertOutbox(entry: OutboxEntry): Promise<void> {
+    this.rows.push({ ...entry });
+    return Promise.resolve();
+  }
+
+  listByOrganization(organizationId: string): Promise<OutboxItem[]> {
+    const items = this.rows
+      .filter((row) => row.organizationId === organizationId)
+      .sort(
+        (left, right) =>
+          right.createdAt.localeCompare(left.createdAt) ||
+          right.id.localeCompare(left.id),
+      )
+      .map((row) => ({
+        messageId: row.messageId,
+        conversationId: row.conversationId,
+        recipient: row.recipient,
+        status: row.status,
+        attempts: row.attempts,
+        lastError: row.lastError,
+        createdAt: row.createdAt,
+      }));
+    return Promise.resolve(items);
+  }
+}
+
+export class FakeAuditEvents implements AuditEventRepository {
+  readonly rows: AuditEvent[] = [];
+
+  insertEvent(event: AuditEvent): Promise<void> {
+    this.rows.push(event);
+    return Promise.resolve();
+  }
+}
+
+/** UnitOfWork double: no transaction, the same fake repositories. */
+export class FakeUnitOfWork implements UnitOfWork {
+  constructor(private readonly repos: TransactionScopedRepositories) {}
+
+  run<T>(fn: (repos: TransactionScopedRepositories) => Promise<T>): Promise<T> {
+    return fn(this.repos);
+  }
+}
+
 export function harness() {
   const conversations = new FakeConversations();
   const messages = new FakeMessages();
   const revisions = new FakeProcessingRevisions();
   const drafts = new FakeDraftRevisions();
   const drafter = new ConstantDrafter();
+  const outbox = new FakeOutbox();
+  const audit = new FakeAuditEvents();
   const profile = new FakeProfile({
     id: ORG,
     name: "Harbour & Pine Cleaning",
@@ -368,6 +529,7 @@ export function harness() {
   const knowledgeBase = new FakeKnowledgeBase();
   const processing = new ProcessInboundMessage({
     messages,
+    conversations,
     revisions,
     drafts,
     classifier,
@@ -392,18 +554,51 @@ export function harness() {
     revisions,
     drafts,
   });
+  const unitOfWork = new FakeUnitOfWork({
+    messages,
+    drafts,
+    outbox,
+    audit,
+  });
+  const sendDraft = new SendApprovedDraft({
+    conversations,
+    drafts,
+    profile,
+    unitOfWork,
+    ids: new SequentialIds(),
+    clock: new FixedClock(),
+  });
+  const reviewDraft = new ReviewDraft({
+    drafts,
+    audit,
+    ids: new SequentialIds(),
+    clock: new FixedClock(),
+  });
+  const takeOver = new TakeOverConversation({
+    conversations,
+    audit,
+    ids: new SequentialIds(),
+    clock: new FixedClock(),
+  });
+  const listOutbox = new ListOutbox(outbox);
   return {
     conversations,
     messages,
     revisions,
     drafts,
     drafter,
+    outbox,
+    audit,
     classifier,
     knowledgeBase,
     processing,
     receive,
     listInbox,
     getThread,
+    sendDraft,
+    reviewDraft,
+    takeOver,
+    listOutbox,
   };
 }
 

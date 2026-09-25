@@ -14,6 +14,14 @@ export type DraftStatus =
   | "discarded"
   | "superseded";
 
+/**
+ * Who authored a draft revision (PLAN.md slice 5): `processing` for
+ * machine-authored originals, `operator` for operator edits. Processing
+ * supersede only ever touches `processing`/`proposed` drafts, so an
+ * operator edit or an operator decision is never silently undone.
+ */
+export type DraftOrigin = "processing" | "operator";
+
 /** Draft statuses the thread UI displays (PLAN.md `Thread.draft`). */
 export type DisplayDraftStatus = "proposed" | "approved";
 
@@ -31,6 +39,8 @@ export interface DraftRevision {
   /** The originating inbound message. */
   readonly messageId: string;
   readonly status: DraftStatus;
+  /** Author of the revision: the pipeline or an operator edit. */
+  readonly origin: DraftOrigin;
   readonly bodyText: string;
   /** Fact ids in the order their blocks appear in the body. */
   readonly factIds: readonly string[];
@@ -45,10 +55,19 @@ export interface DraftRevision {
   readonly updatedAt: string;
 }
 
-/** One selected knowledge block for the FAQ renderer. */
-export interface FaqBlock {
-  readonly id: string;
-  readonly text: string;
+/**
+ * One shared fact-id order (carried review note 11): plain code-unit
+ * comparison, no locale. The renderer's body order and the stored
+ * `fact_ids` order must agree in every environment, so both sites use
+ * this comparator and nothing else.
+ */
+export function compareFactIds(
+  left: string | { readonly id: string },
+  right: string | { readonly id: string },
+): number {
+  const a = typeof left === "string" ? left : left.id;
+  const b = typeof right === "string" ? right : right.id;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Currency symbols that make drafter wording unsafe (drop entirely). */
@@ -71,6 +90,12 @@ export function isDroppedWording(wording: string): boolean {
   }
   const lower = wording.toLowerCase();
   return FORBIDDEN_WORDS.some((word) => lower.includes(word));
+}
+
+/** One selected knowledge block for the FAQ renderer. */
+export interface FaqBlock {
+  readonly id: string;
+  readonly text: string;
 }
 
 export interface FaqBodyInput {
@@ -96,9 +121,7 @@ export function unknownLine(topic: string): string {
 export function buildFaqBody(input: FaqBodyInput): string {
   const greeting = clean(input.greeting);
   const closing = clean(input.closing);
-  const blocks = [...input.blocks].sort((left, right) =>
-    left.id.localeCompare(right.id),
-  );
+  const blocks = [...input.blocks].sort(compareFactIds);
   const lines = [
     ...(greeting ? [greeting] : []),
     ...blocks.map((block) => block.text),

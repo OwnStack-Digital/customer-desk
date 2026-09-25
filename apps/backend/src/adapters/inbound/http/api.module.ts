@@ -15,6 +15,15 @@ import {
 } from "../../../core/ports/draft-revision-repository";
 import { DRAFTER_PORT, type DrafterPort } from "../../../core/ports/drafter";
 import {
+  AUDIT_EVENT_REPOSITORY,
+  type AuditEventRepository,
+} from "../../../core/ports/audit-event-repository";
+import {
+  OUTBOX_REPOSITORY,
+  type OutboxRepository,
+} from "../../../core/ports/outbox-repository";
+import { UNIT_OF_WORK, type UnitOfWork } from "../../../core/ports/unit-of-work";
+import {
   ID_GENERATOR,
   type IdGenerator,
 } from "../../../core/ports/id-generator";
@@ -71,15 +80,25 @@ import {
   RECEIVE_INBOUND_EMAIL,
   ReceiveInboundEmail,
 } from "../../../core/use-cases/receive-inbound-email";
+import { REVIEW_DRAFT, ReviewDraft } from "../../../core/use-cases/review-draft";
 import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
 } from "../../../core/use-cases/retry-message-processing";
 import {
+  SEND_APPROVED_DRAFT,
+  SendApprovedDraft,
+} from "../../../core/use-cases/send-approved-draft";
+import {
   SEED_OWNER,
   SeedOwner,
   type SeedOwnerDeps,
 } from "../../../core/use-cases/seed-owner";
+import {
+  TAKE_OVER_CONVERSATION,
+  TakeOverConversation,
+} from "../../../core/use-cases/take-over-conversation";
+import { LIST_OUTBOX, ListOutbox } from "../../../core/use-cases/list-outbox";
 import { OwnerSeeder } from "../../../infrastructure/composition/owner-seeder";
 import { AiModule } from "../../outbound/ai/ai.module";
 import { ConfigModule } from "../../outbound/config-files/config.module";
@@ -87,13 +106,16 @@ import {
   PERSISTENCE_CLIENT,
   type PersistenceClient,
 } from "../../outbound/persistence/client";
+import { DrizzleAuditEventRepository } from "../../outbound/persistence/audit-event-repository";
 import { DrizzleConversationRepository } from "../../outbound/persistence/conversation-repository";
 import { DrizzleDraftRevisionRepository } from "../../outbound/persistence/draft-revision-repository";
 import { DrizzleMessageRepository } from "../../outbound/persistence/message-repository";
 import { DrizzleOperatorCredentialRepository } from "../../outbound/persistence/operator-credential-repository";
+import { DrizzleOutboxRepository } from "../../outbound/persistence/outbox-repository";
 import { PersistenceModule } from "../../outbound/persistence/persistence.module";
 import { DrizzleProcessingRevisionRepository } from "../../outbound/persistence/processing-revision-repository";
 import { DrizzleSessionRepository } from "../../outbound/persistence/session-repository";
+import { DrizzleUnitOfWork } from "../../outbound/persistence/unit-of-work";
 import { Argon2PasswordHasher } from "../../outbound/security/argon2-password-hasher";
 import {
   INGRESS_KEY_COMPARER,
@@ -103,12 +125,15 @@ import { Sha256TokenHasher } from "../../outbound/security/sha256-token-hasher";
 import { SystemClock } from "../../outbound/security/system-clock";
 import { UlidGenerator } from "../../outbound/security/ulid-id-generator";
 import { AuthController } from "./auth.controller";
+import { DraftsController } from "./drafts.controller";
 import { ErrorBodyFilter } from "./error-body.filter";
 import { HealthController } from "./health.controller";
 import { InboxController } from "./inbox.controller";
 import { IngressController } from "./ingress.controller";
 import { IngressGuard } from "./ingress.guard";
 import { MessagesController } from "./messages.controller";
+import { OutboxController } from "./outbox.controller";
+import { SendController } from "./send.controller";
 import { SessionGuard } from "./session.guard";
 
 /** 7-day absolute session lifetime (docs/PLAN.md frozen choices). */
@@ -122,6 +147,9 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
     InboxController,
     IngressController,
     MessagesController,
+    DraftsController,
+    SendController,
+    OutboxController,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ErrorBodyFilter },
@@ -163,6 +191,23 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       provide: DRAFT_REVISION_REPOSITORY,
       useFactory: (client: PersistenceClient) =>
         new DrizzleDraftRevisionRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: OUTBOX_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleOutboxRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: AUDIT_EVENT_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleAuditEventRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: UNIT_OF_WORK,
+      useFactory: (client: PersistenceClient) => new DrizzleUnitOfWork(client),
       inject: [PERSISTENCE_CLIENT],
     },
     {
@@ -239,6 +284,7 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       provide: PROCESS_INBOUND_MESSAGE,
       useFactory: (
         messages: MessageRepository,
+        conversations: ConversationRepository,
         revisions: ProcessingRevisionRepository,
         drafts: DraftRevisionRepository,
         classifier: ClassifierPort,
@@ -249,6 +295,7 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       ): ProcessInboundMessage =>
         new ProcessInboundMessage({
           messages,
+          conversations,
           revisions,
           drafts,
           classifier,
@@ -259,6 +306,7 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         }),
       inject: [
         MESSAGE_REPOSITORY,
+        CONVERSATION_REPOSITORY,
         PROCESSING_REVISION_REPOSITORY,
         DRAFT_REVISION_REPOSITORY,
         CLASSIFIER_PORT,
@@ -340,6 +388,70 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         PROCESSING_REVISION_REPOSITORY,
         DRAFT_REVISION_REPOSITORY,
       ],
+    },
+    {
+      provide: REVIEW_DRAFT,
+      useFactory: (
+        drafts: DraftRevisionRepository,
+        audit: AuditEventRepository,
+        ids: IdGenerator,
+        clock: Clock,
+      ): ReviewDraft => new ReviewDraft({ drafts, audit, ids, clock }),
+      inject: [
+        DRAFT_REVISION_REPOSITORY,
+        AUDIT_EVENT_REPOSITORY,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: TAKE_OVER_CONVERSATION,
+      useFactory: (
+        conversations: ConversationRepository,
+        audit: AuditEventRepository,
+        ids: IdGenerator,
+        clock: Clock,
+      ): TakeOverConversation =>
+        new TakeOverConversation({ conversations, audit, ids, clock }),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        AUDIT_EVENT_REPOSITORY,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: SEND_APPROVED_DRAFT,
+      useFactory: (
+        conversations: ConversationRepository,
+        drafts: DraftRevisionRepository,
+        profile: OrganizationProfileRepository,
+        unitOfWork: UnitOfWork,
+        ids: IdGenerator,
+        clock: Clock,
+      ): SendApprovedDraft =>
+        new SendApprovedDraft({
+          conversations,
+          drafts,
+          profile,
+          unitOfWork,
+          ids,
+          clock,
+        }),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        DRAFT_REVISION_REPOSITORY,
+        ORGANIZATION_PROFILE_REPOSITORY,
+        UNIT_OF_WORK,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: LIST_OUTBOX,
+      useFactory: (outbox: OutboxRepository): ListOutbox =>
+        new ListOutbox(outbox),
+      inject: [OUTBOX_REPOSITORY],
     },
     OwnerSeeder,
     SessionGuard,

@@ -2,6 +2,7 @@ import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus } from "@nestjs/common";
 import type { Response } from "express";
 import { AuthError } from "../../../core/domain/auth";
+import { ConflictError, StaleRevisionError } from "../../../core/domain/errors";
 import { InboundValidationError } from "../../../core/domain/messaging";
 import { createLogger } from "../../../infrastructure/logger";
 
@@ -31,6 +32,18 @@ export class ErrorBodyFilter implements ExceptionFilter {
     if (exception instanceof InboundValidationError) {
       response.status(HttpStatus.UNPROCESSABLE_ENTITY).json({
         error: { code: "validation", message: exception.message },
+      });
+      return;
+    }
+    if (exception instanceof StaleRevisionError) {
+      response.status(HttpStatus.CONFLICT).json({
+        error: { code: "stale_revision", message: exception.message },
+      });
+      return;
+    }
+    if (exception instanceof ConflictError) {
+      response.status(HttpStatus.CONFLICT).json({
+        error: { code: "conflict", message: exception.message },
       });
       return;
     }
