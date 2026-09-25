@@ -86,6 +86,13 @@ export function buildQuote(
     let base: number;
     if (rule.kind === "per_unit") {
       const resolved = requested.quantity ?? rule.defaultQuantity;
+      if (requested.quantity === undefined && resolved !== undefined) {
+        // A configured default is recorded as an assumption — distinct
+        // from a customer-supplied quantity, which is never listed.
+        assumptions.push(
+          `Assumed quantity ${resolved} ${rule.unit ?? "(unit)"}(s) for "${rule.label}".`,
+        );
+      }
       if (resolved === undefined) {
         reasons.push(
           `"${rule.label}" needs a quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
