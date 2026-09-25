@@ -33,7 +33,10 @@ function pgShape(table: Parameters<typeof getTableConfig>[0]): TableShape {
       .map((constraint) => constraint.name)
       .filter((name): name is string => typeof name === "string")
       .sort(),
-    indexNames: config.indexes.map((index) => index.name).sort(),
+    indexNames: config.indexes
+      .map((index) => index.config.name)
+      .filter((name): name is string => typeof name === "string")
+      .sort(),
   };
 }
 

@@ -74,16 +74,16 @@ export interface StoredMessage {
   readonly sourceMessageId: string;
   readonly messageId: string | null;
   readonly inReplyTo: string | null;
-  readonly references: readonly string[] | null;
+  readonly references: string[] | null;
   readonly fromAddress: string;
   readonly fromName: string | null;
-  readonly to: readonly string[];
-  readonly cc: readonly string[] | null;
+  readonly to: string[];
+  readonly cc: string[] | null;
   readonly replyTo: string | null;
   readonly subject: string | null;
   readonly text: string | null;
   readonly html: string | null;
-  readonly attachments: readonly EmailAttachment[] | null;
+  readonly attachments: EmailAttachment[] | null;
   readonly receivedAt: string;
   readonly sentAt: string | null;
 }
@@ -106,6 +106,16 @@ export interface InboxPage {
   readonly items: readonly InboxItem[];
 }
 
+/** One message in a thread response. HTML is never included. */
+export interface ThreadMessage {
+  readonly id: string;
+  readonly direction: MessageDirection;
+  readonly at: string;
+  readonly from: string;
+  readonly subject?: string;
+  readonly text?: string;
+}
+
 /** Thread JSON shape (slice 2: conversation + messages only). */
 export interface Thread {
   readonly conversation: {
@@ -114,15 +124,7 @@ export interface Thread {
     readonly subject?: string;
     readonly automationPaused: boolean;
   };
-  readonly messages: readonly Array<{
-    readonly id: string;
-    readonly direction: MessageDirection;
-    readonly at: string;
-    readonly from: string;
-    readonly subject?: string;
-    /** Plain text only; HTML is stored but never returned to the UI. */
-    readonly text?: string;
-  }>;
+  readonly messages: readonly ThreadMessage[];
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */

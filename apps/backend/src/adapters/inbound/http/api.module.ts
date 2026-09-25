@@ -2,13 +2,25 @@ import { Module } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 import { CLOCK, type Clock } from "../../../core/ports/clock";
 import {
+  CONVERSATION_REPOSITORY,
+  type ConversationRepository,
+} from "../../../core/ports/conversation-repository";
+import {
   ID_GENERATOR,
   type IdGenerator,
 } from "../../../core/ports/id-generator";
 import {
+  MESSAGE_REPOSITORY,
+  type MessageRepository,
+} from "../../../core/ports/message-repository";
+import {
   OPERATOR_CREDENTIAL_REPOSITORY,
   type OperatorCredentialRepository,
 } from "../../../core/ports/operator-credential-repository";
+import {
+  ORGANIZATION_PROFILE_REPOSITORY,
+  type OrganizationProfileRepository,
+} from "../../../core/ports/organization-profile-repository";
 import {
   PASSWORD_HASHER,
   type PasswordHasher,
@@ -26,12 +38,18 @@ import {
   AuthenticateSession,
   type AuthenticateSessionDeps,
 } from "../../../core/use-cases/authenticate-session";
+import { GET_THREAD, GetThread } from "../../../core/use-cases/get-thread";
+import { LIST_INBOX, ListInbox } from "../../../core/use-cases/list-inbox";
 import { LOGIN, Login } from "../../../core/use-cases/login";
 import {
   LOGOUT,
   Logout,
   type LogoutDeps,
 } from "../../../core/use-cases/logout";
+import {
+  RECEIVE_INBOUND_EMAIL,
+  ReceiveInboundEmail,
+} from "../../../core/use-cases/receive-inbound-email";
 import {
   SEED_OWNER,
   SeedOwner,
@@ -43,16 +61,24 @@ import {
   PERSISTENCE_CLIENT,
   type PersistenceClient,
 } from "../../outbound/persistence/client";
+import { DrizzleConversationRepository } from "../../outbound/persistence/conversation-repository";
+import { DrizzleMessageRepository } from "../../outbound/persistence/message-repository";
 import { DrizzleOperatorCredentialRepository } from "../../outbound/persistence/operator-credential-repository";
 import { PersistenceModule } from "../../outbound/persistence/persistence.module";
 import { DrizzleSessionRepository } from "../../outbound/persistence/session-repository";
 import { Argon2PasswordHasher } from "../../outbound/security/argon2-password-hasher";
+import {
+  INGRESS_KEY_COMPARER,
+  TimingSafeIngressKeyComparer,
+} from "../../outbound/security/ingress-key-comparer";
 import { Sha256TokenHasher } from "../../outbound/security/sha256-token-hasher";
 import { SystemClock } from "../../outbound/security/system-clock";
 import { UlidGenerator } from "../../outbound/security/ulid-id-generator";
 import { AuthController } from "./auth.controller";
 import { ErrorBodyFilter } from "./error-body.filter";
 import { HealthController } from "./health.controller";
+import { IngressController } from "./ingress.controller";
+import { IngressGuard } from "./ingress.guard";
 import { InboxController } from "./inbox.controller";
 import { SessionGuard } from "./session.guard";
 
@@ -61,7 +87,12 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Module({
   imports: [ConfigModule, PersistenceModule],
-  controllers: [HealthController, AuthController, InboxController],
+  controllers: [
+    HealthController,
+    AuthController,
+    InboxController,
+    IngressController,
+  ],
   providers: [
     { provide: APP_FILTER, useClass: ErrorBodyFilter },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
@@ -79,6 +110,23 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
       useFactory: (client: PersistenceClient) =>
         new DrizzleSessionRepository(client),
       inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: CONVERSATION_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleConversationRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: MESSAGE_REPOSITORY,
+      useFactory: (client: PersistenceClient) =>
+        new DrizzleMessageRepository(client),
+      inject: [PERSISTENCE_CLIENT],
+    },
+    {
+      provide: INGRESS_KEY_COMPARER,
+      useFactory: (): TimingSafeIngressKeyComparer =>
+        new TimingSafeIngressKeyComparer(process.env.BOS_INGRESS_KEY),
     },
     {
       provide: LOGIN,
@@ -145,8 +193,49 @@ const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
         CLOCK,
       ],
     },
+    {
+      provide: RECEIVE_INBOUND_EMAIL,
+      useFactory: (
+        conversations: ConversationRepository,
+        messages: MessageRepository,
+        profile: OrganizationProfileRepository,
+        ids: IdGenerator,
+        clock: Clock,
+      ): ReceiveInboundEmail =>
+        new ReceiveInboundEmail({
+          conversations,
+          messages,
+          profile,
+          ids,
+          clock,
+        }),
+      inject: [
+        CONVERSATION_REPOSITORY,
+        MESSAGE_REPOSITORY,
+        ORGANIZATION_PROFILE_REPOSITORY,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: LIST_INBOX,
+      useFactory: (
+        conversations: ConversationRepository,
+        messages: MessageRepository,
+      ): ListInbox => new ListInbox({ conversations, messages }),
+      inject: [CONVERSATION_REPOSITORY, MESSAGE_REPOSITORY],
+    },
+    {
+      provide: GET_THREAD,
+      useFactory: (
+        conversations: ConversationRepository,
+        messages: MessageRepository,
+      ): GetThread => new GetThread({ conversations, messages }),
+      inject: [CONVERSATION_REPOSITORY, MESSAGE_REPOSITORY],
+    },
     OwnerSeeder,
     SessionGuard,
+    IngressGuard,
   ],
 })
 export class ApiModule {}

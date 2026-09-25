@@ -43,7 +43,7 @@ export class ListInbox {
           processing: "pending",
           urgent: false,
           automationPaused: conversation.automationPaused,
-          preview: previewOf(message?.text),
+          preview: previewOf(message?.text ?? undefined),
         };
       })
       // ISO-8601 strings sort chronologically as plain text.

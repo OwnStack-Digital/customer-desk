@@ -2,6 +2,7 @@ import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus } from "@nestjs/common";
 import type { Response } from "express";
 import { AuthError } from "../../../core/domain/auth";
+import { InboundValidationError } from "../../../core/domain/messaging";
 import { createLogger } from "../../../infrastructure/logger";
 
 /** Error codes from docs/PLAN.md "Error body". */
@@ -25,6 +26,12 @@ export class ErrorBodyFilter implements ExceptionFilter {
       response
         .status(HttpStatus.UNAUTHORIZED)
         .json({ error: { code: "unauthorized", message: exception.message } });
+      return;
+    }
+    if (exception instanceof InboundValidationError) {
+      response.status(HttpStatus.UNPROCESSABLE_ENTITY).json({
+        error: { code: "validation", message: exception.message },
+      });
       return;
     }
     if (exception instanceof HttpException) {
