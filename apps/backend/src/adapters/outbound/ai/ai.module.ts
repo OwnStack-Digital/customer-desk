@@ -1,9 +1,11 @@
 import { Module } from "@nestjs/common";
 import { CLASSIFIER_PORT } from "../../../core/ports/classifier";
+import { DRAFTER_PORT } from "../../../core/ports/drafter";
 import type { KnowledgeBaseRepository } from "../../../core/ports/knowledge-base-repository";
 import { KNOWLEDGE_BASE_REPOSITORY } from "../../../core/ports/knowledge-base-repository";
 import { ConfigModule } from "../config-files/config.module";
 import { FakeClassifier } from "./fake-classifier";
+import { FakeDrafter } from "./fake-drafter";
 
 /**
  * Binds ClassifierPort / DrafterPort. The demonstrator uses the
@@ -32,7 +34,14 @@ export function assertFakeAdapter(
       },
       inject: [KNOWLEDGE_BASE_REPOSITORY],
     },
+    {
+      provide: DRAFTER_PORT,
+      useFactory: (): FakeDrafter => {
+        assertFakeAdapter(process.env.AI_ADAPTER);
+        return new FakeDrafter();
+      },
+    },
   ],
-  exports: [CLASSIFIER_PORT],
+  exports: [CLASSIFIER_PORT, DRAFTER_PORT],
 })
 export class AiModule {}
