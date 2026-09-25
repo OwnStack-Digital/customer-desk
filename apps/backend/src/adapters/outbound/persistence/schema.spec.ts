@@ -6,10 +6,12 @@ import {
   pgMessages,
   pgOperatorCredentials,
   pgOperatorSessions,
+  pgProcessingRevisions,
   sqliteConversations,
   sqliteMessages,
   sqliteOperatorCredentials,
   sqliteOperatorSessions,
+  sqliteProcessingRevisions,
 } from "./schema";
 
 interface TableShape {
@@ -85,5 +87,11 @@ describe("pg/sqlite schema parity", () => {
 
   it("messages matches", () => {
     expect(sqliteShape(sqliteMessages)).toEqual(pgShape(pgMessages));
+  });
+
+  it("processing_revisions matches", () => {
+    expect(sqliteShape(sqliteProcessingRevisions)).toEqual(
+      pgShape(pgProcessingRevisions),
+    );
   });
 });

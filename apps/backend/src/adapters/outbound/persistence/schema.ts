@@ -3,6 +3,7 @@ import {
   boolean,
   jsonb,
   index as pgIndex,
+  integer as pgInteger,
   pgTable,
   uniqueIndex as pgUniqueIndex,
   text,
@@ -185,5 +186,64 @@ export const pgMessages = pgTable(
     pgUniqueIndex("messages_inbound_source_unique")
       .on(table.mailboxId, table.sourceMessageId)
       .where(sql`direction = 'inbound'`),
+  ],
+);
+
+/**
+ * Slice 3: processing revisions. `classification` is the full
+ * Classification artifact (jsonb on Postgres, text JSON on SQLite).
+ */
+export const pgProcessingRevisions = pgTable(
+  "processing_revisions",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => pgMessages.id),
+    revisionNumber: pgInteger("revision_number").notNull(),
+    status: text("status").notNull(),
+    lane: text("lane"),
+    summary: text("summary"),
+    classification: jsonb("classification").$type<unknown>(),
+    error: text("error"),
+    knowledgeBaseVersion: text("knowledge_base_version"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    // One revision number per message; attempts append, never overwrite.
+    pgUniqueIndex("processing_revisions_message_revision_unique").on(
+      table.messageId,
+      table.revisionNumber,
+    ),
+    pgIndex("processing_revisions_message_idx").on(table.messageId),
+    pgIndex("processing_revisions_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const sqliteProcessingRevisions = sqliteTable(
+  "processing_revisions",
+  {
+    id: sqliteText("id").primaryKey(),
+    organizationId: sqliteText("organization_id").notNull(),
+    messageId: sqliteText("message_id")
+      .notNull()
+      .references(() => sqliteMessages.id),
+    revisionNumber: integer("revision_number").notNull(),
+    status: sqliteText("status").notNull(),
+    lane: sqliteText("lane"),
+    summary: sqliteText("summary"),
+    classification: sqliteText("classification"),
+    error: sqliteText("error"),
+    knowledgeBaseVersion: sqliteText("knowledge_base_version"),
+    createdAt: sqliteText("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("processing_revisions_message_revision_unique").on(
+      table.messageId,
+      table.revisionNumber,
+    ),
+    index("processing_revisions_message_idx").on(table.messageId),
+    index("processing_revisions_organization_idx").on(table.organizationId),
   ],
 );

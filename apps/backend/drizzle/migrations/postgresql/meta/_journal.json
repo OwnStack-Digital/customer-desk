@@ -15,6 +15,13 @@
       "when": 1790346846200,
       "tag": "0001_conversations_and_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790347000000,
+      "tag": "0002_processing_revisions",
+      "breakpoints": true
     }
   ]
 }
