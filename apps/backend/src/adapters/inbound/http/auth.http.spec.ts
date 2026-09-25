@@ -171,6 +171,24 @@ describe("one-org auth over HTTP", () => {
     expect(response.body.error.code).toBe("validation");
   });
 
+  it("includes the Secure attribute on the cookie when COOKIE_SECURE=true", async () => {
+    // Cookie options are computed per request, so toggling the env is enough.
+    process.env.COOKIE_SECURE = "true";
+    try {
+      const login = await request(app.getHttpServer())
+        .post("/auth/login")
+        .send({ email: OWNER_EMAIL, password: OWNER_PASSWORD });
+      expect(login.status).toBe(200);
+      expect(login.headers["set-cookie"]?.[0] ?? "").toContain("Secure");
+    } finally {
+      delete process.env.COOKIE_SECURE;
+    }
+    const relaxed = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({ email: OWNER_EMAIL, password: OWNER_PASSWORD });
+    expect(relaxed.headers["set-cookie"]?.[0] ?? "").not.toContain("Secure");
+  });
+
   it("seeds exactly one owner at boot and reuses it", async () => {
     const config = app.get(CONFIG) as ValidatedConfig;
     expect(config.organization.id).toBe("org_harbour_pine");

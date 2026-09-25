@@ -16,7 +16,7 @@ export class IngressGuard implements CanActivate {
     @Inject(INGRESS_KEY_COMPARER) private readonly keys: IngressKeyComparer,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context
       .switchToHttp()
       .getRequest<{ headers: Record<string, unknown> }>();
