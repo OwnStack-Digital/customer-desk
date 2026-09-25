@@ -270,6 +270,30 @@ describe("ProcessInboundMessage", () => {
     });
   });
 
+  it("quote reply with accept intent but no sent quote versions is needs_human", async () => {
+    const h = harness();
+    // A replied-to outbound quote message, but no sent quote version on the
+    // conversation: even a clear accept has no candidate to confirm.
+    h.messages.rows.push(outboundFixture());
+    h.classifier.script({
+      ...classificationOf("quote_reply"),
+      quoteReply: { intent: "accept" },
+    });
+    const result = await h.receive.run(
+      email({
+        sourceMessageId: "src-qr-none",
+        messageId: "<qr-none@customer.example>",
+        inReplyTo: "<quote-1@harbourandpine.example>",
+      }),
+    );
+    expect(result.processing).toBe("needs_human");
+    const revision = h.revisions.rows.at(-1);
+    expect(revision?.classification?.quoteReply).toEqual({
+      intent: "accept",
+      candidateQuoteVersionIds: [],
+    });
+  });
+
   it("quote reply with change/unclear intent or multiple candidates is needs_human", async () => {
     const h = harness();
     const conversationId = "ulid-outbound-conversation";

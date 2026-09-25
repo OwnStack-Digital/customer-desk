@@ -192,6 +192,14 @@ describe("demonstrator golden path (gate items 2-7)", () => {
         "needs_human",
         { subject: "Terrible", text: "I am unhappy and want a refund." },
       ],
+      // A quote reply with no sent quote on its fresh conversation: even
+      // a clear accept has zero candidates, so it is a human item — but
+      // the lane is still classified and visible in the inbox.
+      [
+        "quote_reply",
+        "needs_human",
+        { subject: "[bos:quote_reply] Accept", text: "I accept the quote." },
+      ],
       [
         "other",
         "needs_human",
@@ -243,6 +251,7 @@ describe("demonstrator golden path (gate items 2-7)", () => {
     expect(lanesSeen).toContain("quote");
     expect(lanesSeen).toContain("service");
     expect(lanesSeen).toContain("complaint");
+    expect(lanesSeen).toContain("quote_reply");
     expect(lanesSeen).toContain("other");
     expect(lanesSeen).toContain("noise");
     // The failure stays visible.

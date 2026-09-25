@@ -302,8 +302,73 @@ describe("POST /threads/:conversationId/quote-decision over HTTP", () => {
       .map((row) => `${row.action}:${row.actor}`);
     expect(draftActions).toContain(`draft.approved:${OWNER_EMAIL}`);
     expect(draftActions).toContain(`draft.sent:${OWNER_EMAIL}`);
+
+    // The remaining audit-writing owner actions — draft.edited,
+    // draft.discarded, conversation.takeover — also name the operator
+    // email the session guard resolved.
+    const { conversationId: editConversationId } =
+      await ingestQuote("src-audit-edit");
+    const editThread = await request(app.getHttpServer())
+      .get(`/threads/${editConversationId}`)
+      .set("Cookie", cookie);
+    const editedFromRevisionId = (
+      editThread.body.draft as { revisionId: string }
+    ).revisionId;
+    const edited = await post(
+      cookie,
+      `/threads/${editConversationId}/drafts/${editedFromRevisionId}`,
+      { action: "edit", bodyText: "Owner wording." },
+    );
+    expect(edited.status).toBe(201);
+
+    const { conversationId: discardConversationId } =
+      await ingestQuote("src-audit-discard");
+    const discardThread = await request(app.getHttpServer())
+      .get(`/threads/${discardConversationId}`)
+      .set("Cookie", cookie);
+    const discardedRevisionId = (
+      discardThread.body.draft as { revisionId: string }
+    ).revisionId;
+    const discarded = await post(
+      cookie,
+      `/threads/${discardConversationId}/drafts/${discardedRevisionId}`,
+      { action: "discard" },
+    );
+    expect(discarded.status).toBe(201);
+
+    const { conversationId: takeoverConversationId } =
+      await ingestQuote("src-audit-takeover");
+    const takeover = await post(
+      cookie,
+      `/threads/${takeoverConversationId}/take-over`,
+      {},
+    );
+    expect(takeover.status).toBe(201);
+
+    const after = await auditRows();
+    expect(
+      after.find(
+        (row) =>
+          row.action === "draft.edited" &&
+          row.entityId === editedFromRevisionId,
+      ),
+    ).toMatchObject({ actor: OWNER_EMAIL });
+    expect(
+      after.find(
+        (row) =>
+          row.action === "draft.discarded" &&
+          row.entityId === discardedRevisionId,
+      ),
+    ).toMatchObject({ actor: OWNER_EMAIL });
+    expect(
+      after.find(
+        (row) =>
+          row.action === "conversation.takeover" &&
+          row.entityId === takeoverConversationId,
+      ),
+    ).toMatchObject({ actor: OWNER_EMAIL });
     // No generic "operator" actor remains anywhere.
-    expect(events.every((row) => row.actor !== "operator")).toBe(true);
+    expect(after.every((row) => row.actor !== "operator")).toBe(true);
     expect(conversationId).toBeDefined();
   });
 });

@@ -19,6 +19,9 @@ import {
  * replacement policy. All ports are fakes; no database, no network.
  */
 
+/** Carried note 14: audit actors are operator emails, never "operator". */
+const OPERATOR_EMAIL = "owner@harbourandpine.example";
+
 function faqClassification(factIds: string[] = ["kb_hours"]) {
   return {
     ...classificationOf("faq"),
@@ -54,7 +57,7 @@ describe("ReviewDraft (task 5.2)", () => {
       received.conversationId,
       original.id,
       { action: "edit", bodyText: "Hi,\n\nWe clean Mon to Fri.\n\nThanks," },
-      "operator",
+      OPERATOR_EMAIL,
     );
     expect(reviewed).toMatchObject({
       status: "proposed",
@@ -72,7 +75,13 @@ describe("ReviewDraft (task 5.2)", () => {
       factIds: [],
       knowledgeBaseVersion: null,
     });
-    expect(h.audit.rows.map((row) => row.action)).toEqual(["draft.edited"]);
+    // Carried note 14: the audit event names the operator email.
+    expect(h.audit.rows).toEqual([
+      expect.objectContaining({
+        action: "draft.edited",
+        actor: OPERATOR_EMAIL,
+      }),
+    ]);
   });
 
   it("edit invalidates approval: edited approved draft → old superseded, new one unapproved", async () => {
@@ -194,7 +203,7 @@ describe("ReviewDraft (task 5.2)", () => {
       received.conversationId,
       original.id,
       { action: "discard" },
-      "operator",
+      OPERATOR_EMAIL,
     );
     expect(reviewed).toMatchObject({
       revisionId: original.id,
@@ -211,7 +220,13 @@ describe("ReviewDraft (task 5.2)", () => {
         "operator",
       ),
     ).rejects.toBeInstanceOf(StaleRevisionError);
-    expect(h.audit.rows.map((row) => row.action)).toEqual(["draft.discarded"]);
+    // Carried note 14: the audit event names the operator email.
+    expect(h.audit.rows).toEqual([
+      expect.objectContaining({
+        action: "draft.discarded",
+        actor: OPERATOR_EMAIL,
+      }),
+    ]);
   });
 
   it("an unknown revision or a foreign conversation resolves to undefined (404)", async () => {
@@ -275,14 +290,18 @@ describe("take-over (task 5.4)", () => {
     const paused = await h.takeOver.run(
       ORG,
       received.conversationId,
-      "operator",
+      OPERATOR_EMAIL,
     );
     expect(paused).toBe(true);
     expect(h.conversations.rows[0]).toMatchObject({
       automationPaused: true,
     });
-    expect(h.audit.rows.map((row) => row.action)).toEqual([
-      "conversation.takeover",
+    // Carried note 14: the audit event names the operator email.
+    expect(h.audit.rows).toEqual([
+      expect.objectContaining({
+        action: "conversation.takeover",
+        actor: OPERATOR_EMAIL,
+      }),
     ]);
   });
 
