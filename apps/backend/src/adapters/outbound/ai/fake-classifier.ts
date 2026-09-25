@@ -221,7 +221,7 @@ export class FakeClassifier implements ClassifierPort {
       };
       if (candidate.rule.kind === "per_unit" && candidate.rule.unit) {
         const quantity = new RegExp(
-          `(\\d+)[ -]*${escapeRegExp(candidate.rule.unit)}s?\b`,
+          `(\\d+)[ -]*${escapeRegExp(candidate.rule.unit)}s?\\b`,
         ).exec(haystack);
         if (quantity) {
           line.quantity = Number(quantity[1]);
