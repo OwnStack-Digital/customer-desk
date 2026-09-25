@@ -1,182 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { OrganizationProfile } from "../domain/config";
-import type {
-  Conversation,
-  InboundEmail,
-  StoredMessage,
-} from "../domain/messaging";
+import type { InboundEmail, StoredMessage } from "../domain/messaging";
 import { InboundValidationError } from "../domain/messaging";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import { GetThread } from "./get-thread";
-import { ListInbox } from "./list-inbox";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
-
-const ORG = "org_harbour_pine";
-const MAILBOX = "mb_main";
-const NOW = "2025-06-01T00:00:00.000Z";
-
-class FixedClock implements Clock {
-  now(): Date {
-    return new Date(NOW);
-  }
-}
-
-class SequentialIds implements IdGenerator {
-  private seq = 0;
-  nextId(): string {
-    this.seq += 1;
-    return `ulid-${this.seq}`;
-  }
-}
-
-class FakeConversations implements ConversationRepository {
-  readonly rows: Conversation[] = [];
-
-  insertConversation(conversation: Conversation): Promise<void> {
-    this.rows.push(conversation);
-    return Promise.resolve();
-  }
-
-  findById(
-    organizationId: string,
-    conversationId: string,
-  ): Promise<Conversation | undefined> {
-    return Promise.resolve(
-      this.rows.find(
-        (row) =>
-          row.organizationId === organizationId && row.id === conversationId,
-      ),
-    );
-  }
-
-  listByOrganization(organizationId: string): Promise<Conversation[]> {
-    return Promise.resolve(
-      this.rows.filter((row) => row.organizationId === organizationId),
-    );
-  }
-}
-
-class FakeMessages implements MessageRepository {
-  readonly rows: StoredMessage[] = [];
-
-  insertMessage(message: StoredMessage): Promise<void> {
-    this.rows.push(message);
-    return Promise.resolve();
-  }
-
-  findBySourceKey(
-    mailboxId: string,
-    sourceMessageId: string,
-  ): Promise<StoredMessage | undefined> {
-    return Promise.resolve(
-      this.rows.find(
-        (row) =>
-          row.mailboxId === mailboxId &&
-          row.sourceMessageId === sourceMessageId &&
-          row.direction === "inbound",
-      ),
-    );
-  }
-
-  findByRfcMessageId(
-    mailboxId: string,
-    rfcMessageId: string,
-  ): Promise<StoredMessage | undefined> {
-    return Promise.resolve(
-      this.rows.find(
-        (row) => row.mailboxId === mailboxId && row.messageId === rfcMessageId,
-      ),
-    );
-  }
-
-  findLatestPerConversation(organizationId: string): Promise<StoredMessage[]> {
-    const latest = new Map<string, StoredMessage>();
-    for (const message of this.rows) {
-      if (message.organizationId !== organizationId) {
-        continue;
-      }
-      const current = latest.get(message.conversationId);
-      if (
-        !current ||
-        message.receivedAt > current.receivedAt ||
-        (message.receivedAt === current.receivedAt && message.id > current.id)
-      ) {
-        latest.set(message.conversationId, message);
-      }
-    }
-    return Promise.resolve([...latest.values()]);
-  }
-
-  listByConversation(
-    organizationId: string,
-    conversationId: string,
-  ): Promise<StoredMessage[]> {
-    return Promise.resolve(
-      this.rows
-        .filter(
-          (row) =>
-            row.organizationId === organizationId &&
-            row.conversationId === conversationId,
-        )
-        .sort(
-          (left, right) =>
-            left.receivedAt.localeCompare(right.receivedAt) ||
-            left.id.localeCompare(right.id),
-        ),
-    );
-  }
-}
-
-class FakeProfile implements OrganizationProfileRepository {
-  constructor(private readonly profile: OrganizationProfile) {}
-  getProfile(): OrganizationProfile {
-    return this.profile;
-  }
-}
-
-function harness() {
-  const conversations = new FakeConversations();
-  const messages = new FakeMessages();
-  const profile = new FakeProfile({
-    id: ORG,
-    name: "Harbour & Pine Cleaning",
-    timezone: "Australia/Sydney",
-    currency: "AUD",
-    fromAddress: "hello@harbourandpine.example",
-    quoteValidityDays: 14,
-    taxMode: "exclusive",
-    mailboxId: MAILBOX,
-  });
-  const receive = new ReceiveInboundEmail({
-    conversations,
-    messages,
-    profile,
-    ids: new SequentialIds(),
-    clock: new FixedClock(),
-  });
-  const listInbox = new ListInbox({ conversations, messages });
-  const getThread = new GetThread({ conversations, messages });
-  return { conversations, messages, receive, listInbox, getThread };
-}
-
-/** A minimal valid inbound email; override per test. */
-function email(overrides: Partial<InboundEmail> = {}): InboundEmail {
-  return {
-    mailboxId: MAILBOX,
-    sourceMessageId: "src-1",
-    messageId: "<msg-1@customer.example>",
-    from: { address: "sam@example.test", name: "Sam" },
-    to: [`${MAILBOX}@harbourandpine.example`],
-    subject: "Oven clean",
-    text: "Hi, how much for an oven clean?",
-    receivedAt: "2025-06-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
+import {
+  email,
+  FakeMessages,
+  FakeProfile,
+  FixedClock,
+  harness,
+  MAILBOX,
+  NOW,
+  ORG,
+  SequentialIds,
+} from "./testing";
 
 describe("ReceiveInboundEmail", () => {
   it("stores a new email and creates the conversation snapshot", async () => {
@@ -186,7 +22,7 @@ describe("ReceiveInboundEmail", () => {
       messageId: "ulid-2",
       conversationId: "ulid-1",
       duplicate: false,
-      processing: "pending",
+      processing: "ready",
     });
     expect(h.conversations.rows).toHaveLength(1);
     expect(h.conversations.rows[0]).toMatchObject({
@@ -304,7 +140,7 @@ describe("ReceiveInboundEmail", () => {
       messageId: first.messageId,
       conversationId: first.conversationId,
       duplicate: true,
-      processing: "pending",
+      processing: "ready",
     });
     expect(h.messages.rows).toHaveLength(1);
     expect(h.conversations.rows).toHaveLength(1);
@@ -363,13 +199,14 @@ describe("ListInbox", () => {
     expect(item).toMatchObject({
       conversationId: newer.conversationId,
       from: { address: "jo@example.test" },
-      processing: "pending",
+      lane: "quote",
+      processing: "ready",
       urgent: false,
       automationPaused: false,
       latestAt: "2025-06-02T00:00:00.000Z",
       preview: "Hi, how much for an oven clean?",
     });
-    expect(Object.keys(item)).not.toContain("lane");
+    expect(item.lane).toBe("quote");
   });
 
   it("collapses whitespace and truncates the preview at 140 characters", async () => {
@@ -422,10 +259,104 @@ describe("GetThread", () => {
     expect(thread?.messages.every((message) => !("html" in message))).toBe(
       true,
     );
+    // Processing comes from the latest revision of the latest message.
+    expect(thread?.processing).toEqual({
+      status: "ready",
+      lane: "quote",
+      summary: "Quote request",
+    });
   });
 
   it("resolves an unknown conversation to undefined", async () => {
     const h = harness();
     expect(await h.getThread.run(ORG, "ulid-nope")).toBeUndefined();
+  });
+});
+
+describe("ingress hardening (carried notes 6-8)", () => {
+  it("note 7: normalizes +10:00 receivedAt/sentAt to UTC ISO before storing", async () => {
+    const h = harness();
+    await h.receive.run(
+      email({
+        sourceMessageId: "src-offset",
+        receivedAt: "2025-06-01T10:00:00.000+10:00",
+        sentAt: "2025-06-01T09:59:00.000+10:00",
+      }),
+    );
+    const stored = h.messages.rows.find(
+      (row) => row.sourceMessageId === "src-offset",
+    );
+    expect(stored?.receivedAt).toBe("2025-06-01T00:00:00.000Z");
+    expect(stored?.sentAt).toBe("2025-05-31T23:59:00.000Z");
+  });
+
+  it("note 8: rejects non-string values for the optional free-text fields", async () => {
+    const h = harness();
+    const nonStrings = [
+      { subject: 42 },
+      { text: 42 },
+      { html: 42 },
+      { replyTo: 42 },
+      { messageId: 42 },
+      { inReplyTo: 42 },
+      // Non-strings are exactly what note 8 rejects; the cast keeps the
+      // compiler from enforcing the DTO on deliberately-invalid input.
+    ] as unknown as Array<Partial<InboundEmail>>;
+    for (const override of nonStrings) {
+      await expect(h.receive.run(email(override))).rejects.toBeInstanceOf(
+        InboundValidationError,
+      );
+    }
+    expect(h.messages.rows).toHaveLength(0);
+    expect(h.conversations.rows).toHaveLength(0);
+  });
+
+  it("note 6: a lost insert race re-checks the source key and reports duplicate", async () => {
+    const h = harness();
+    // Simulates the unique-index violation the loser of a concurrent
+    // duplicate receives: the initial lookup misses, the insert throws.
+    await h.receive.run(email({ sourceMessageId: "src-race" }));
+    const original = h.messages.rows[0];
+    const racing = new FakeMessages();
+    let lookedUp = false;
+    racing.findBySourceKey = async (mailboxId: string, sourceId: string) => {
+      // First lookup misses (the race); the post-violation re-check hits.
+      if (lookedUp) {
+        return h.messages.findBySourceKey(mailboxId, sourceId);
+      }
+      lookedUp = true;
+      return undefined;
+    };
+    racing.insertMessage = async (message: StoredMessage) => {
+      await h.messages.insertMessage(message); // would lose the race
+      throw new Error("UNIQUE constraint failed: messages.mailbox_id");
+    };
+    const raceHarness = new ReceiveInboundEmail({
+      conversations: h.conversations,
+      messages: racing,
+      revisions: h.revisions,
+      profile: new FakeProfile({
+        id: ORG,
+        name: "Harbour & Pine Cleaning",
+        timezone: "Australia/Sydney",
+        currency: "AUD",
+        fromAddress: "hello@harbourandpine.example",
+        quoteValidityDays: 14,
+        taxMode: "exclusive",
+        mailboxId: MAILBOX,
+      }),
+      processing: h.processing,
+      ids: new SequentialIds(),
+      clock: new FixedClock(),
+    });
+    const result = await raceHarness.run(
+      email({ sourceMessageId: "src-race" }),
+    );
+    expect(result).toEqual({
+      messageId: original.id,
+      conversationId: original.conversationId,
+      duplicate: true,
+      processing: "ready",
+    });
   });
 });
