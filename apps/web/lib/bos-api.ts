@@ -138,7 +138,12 @@ export type InboxItem = {
 /** Shape returned by GET /inbox. */
 export type InboxPage = { items: InboxItem[] };
 
-/** Thread from docs/PLAN.md (slice 2: conversation + messages only). */
+/** Owner inbox filters (GET /inbox?filter=...). */
+export const INBOX_FILTERS = ["all", "needs_human", "complaints"] as const;
+
+export type InboxFilter = (typeof INBOX_FILTERS)[number];
+
+/** Thread from docs/PLAN.md (slice 3 adds processing). */
 export type Thread = {
   conversation: {
     id: string;
@@ -154,4 +159,9 @@ export type Thread = {
     subject?: string;
     text?: string;
   }>;
+  processing?: {
+    status: ProcessingStatus;
+    lane?: InboxItem["lane"];
+    summary: string;
+  };
 };

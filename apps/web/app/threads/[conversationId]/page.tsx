@@ -74,6 +74,34 @@ export default async function ThreadPage({
               Automation paused: replies are manual.
             </p>
           ) : null}
+          {result.processing ? (
+            <div
+              style={{
+                margin: "0.75rem 0 0",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #e2e2e2",
+                borderRadius: "8px",
+                background: "#f5f5f5",
+                fontSize: "0.85rem",
+                display: "flex",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
+              {result.processing.lane === "complaint" ? (
+                <span style={{ color: "#b00020", fontWeight: 600 }}>
+                  Urgent
+                </span>
+              ) : null}
+              <span>Lane: {result.processing.lane ?? "unknown"}</span>
+              <span>Status: {result.processing.status}</span>
+              {result.processing.summary ? (
+                <span style={{ color: "#555" }}>
+                  {result.processing.summary}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {result.messages.length === 0 ? (
             <p style={{ color: "#555" }}>This conversation has no messages.</p>
           ) : (

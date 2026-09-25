@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import {
   BosApiError,
   bosApi,
+  INBOX_FILTERS,
+  type InboxFilter,
   type InboxItem,
   type InboxPage as InboxPageData,
 } from "../../lib/bos-api";
@@ -15,13 +17,26 @@ const pageStyle = {
   padding: "1.5rem 1rem",
 } as const;
 
-async function loadInbox(): Promise<InboxPageData | "login" | "error"> {
+const FILTER_LABELS: Record<InboxFilter, string> = {
+  all: "All",
+  needs_human: "Needs review",
+  complaints: "Complaints",
+};
+
+function isInboxFilter(value: string | undefined): value is InboxFilter {
+  return (INBOX_FILTERS as readonly string[]).includes(value ?? "");
+}
+
+async function loadInbox(
+  filter: InboxFilter,
+): Promise<InboxPageData | "login" | "error"> {
   const session = (await cookies()).get("bos_session")?.value;
   if (!session) {
     return "login";
   }
   try {
-    return await bosApi<InboxPageData>("/inbox", {
+    const query = filter === "all" ? "" : `?filter=${filter}`;
+    return await bosApi<InboxPageData>(`/inbox${query}`, {
       headers: { cookie: `bos_session=${session}` },
     });
   } catch (error) {
@@ -40,6 +55,42 @@ function formatTime(iso: string): string {
     : date.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function FilterTabs({ current }: { current: InboxFilter }) {
+  return (
+    <nav
+      style={{
+        display: "flex",
+        gap: "0.25rem",
+        margin: "0.75rem 0 1rem",
+        flexWrap: "wrap",
+      }}
+      aria-label="Inbox filters"
+    >
+      {INBOX_FILTERS.map((filter) => {
+        const active = filter === current;
+        return (
+          <a
+            key={filter}
+            href={filter === "all" ? "/inbox" : `/inbox?filter=${filter}`}
+            aria-current={active ? "page" : undefined}
+            style={{
+              padding: "0.3rem 0.75rem",
+              borderRadius: "999px",
+              border: `1px solid ${active ? "#1a1a1a" : "#e2e2e2"}`,
+              background: active ? "#1a1a1a" : "#fff",
+              color: active ? "#fff" : "#1a1a1a",
+              textDecoration: "none",
+              fontSize: "0.85rem",
+            }}
+          >
+            {FILTER_LABELS[filter]}
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
 function InboxRow({ item }: { item: InboxItem }) {
   const customer = item.from.name
     ? `${item.from.name} · ${item.from.address}`
@@ -51,10 +102,11 @@ function InboxRow({ item }: { item: InboxItem }) {
         style={{
           display: "block",
           padding: "0.75rem",
-          border: "1px solid #e2e2e2",
+          border: `1px solid ${item.urgent ? "#b00020" : "#e2e2e2"}`,
           borderRadius: "8px",
           textDecoration: "none",
           color: "inherit",
+          background: item.urgent ? "#fff5f6" : "#fff",
         }}
       >
         <div
@@ -95,30 +147,48 @@ function InboxRow({ item }: { item: InboxItem }) {
           {item.preview || "(no preview)"}
         </p>
         <div
-          style={{ marginTop: "0.25rem", fontSize: "0.75rem", color: "#777" }}
+          style={{
+            marginTop: "0.25rem",
+            fontSize: "0.75rem",
+            color: "#777",
+            display: "flex",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
         >
-          {item.processing}
+          {item.urgent ? (
+            <span style={{ color: "#b00020", fontWeight: 600 }}>Urgent</span>
+          ) : null}
+          {item.lane ? <span>{item.lane}</span> : null}
+          <span>{item.processing}</span>
         </div>
       </a>
     </li>
   );
 }
 
-export default async function InboxPage() {
-  const result = await loadInbox();
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter: rawFilter } = await searchParams;
+  const filter = isInboxFilter(rawFilter) ? rawFilter : "all";
+  const result = await loadInbox(filter);
   if (result === "login") {
     redirect("/login");
   }
   return (
     <main style={pageStyle}>
       <h1 style={{ fontSize: "1.25rem" }}>Inbox</h1>
+      <FilterTabs current={filter} />
       {result === "error" ? (
         <p style={{ color: "#b00020" }}>
           The inbox is unavailable right now. Please try again in a moment.
         </p>
       ) : result.items.length === 0 ? (
         <p style={{ color: "#555" }}>
-          No conversations yet. Incoming mail appears here.
+          No conversations here yet. Incoming mail appears in this list.
         </p>
       ) : (
         <ul

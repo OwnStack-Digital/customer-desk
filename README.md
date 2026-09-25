@@ -42,11 +42,26 @@ at the web app's `/login`; the session cookie lasts 7 days.
 `POST /inbound/emails` accepts the normalized `InboundEmail` DTO behind
 `Authorization: Bearer <BOS_INGRESS_KEY>` (constant-time compare). A new
 message returns **201** `{ messageId, conversationId, duplicate: false,
-processing: "pending" }`; a replay of the same
-`(mailboxId, sourceMessageId)` returns **200** with the original ids and
-`duplicate: true`. The body's `mailboxId` must equal the configured
-mailbox id (else 422). Threads form only via `inReplyTo` / `references`
-against stored RFC Message-IDs in the same mailbox.
+processing }` — `processing` is the post-commit status (`ready`,
+`needs_human`, or `failed`); a processing failure still returns 201. A
+replay of the same `(mailboxId, sourceMessageId)` returns **200** with the
+original ids and `duplicate: true` and does not restart processing. The
+body's `mailboxId` must equal the configured mailbox id (else 422).
+Threads form only via `inReplyTo` / `references` against stored RFC
+Message-IDs in the same mailbox.
+
+## Processing
+
+Every inbound message is processed after its receipt commits: the
+`AI_ADAPTER=fake` classifier (deterministic, first match; anything else
+fails boot) assigns a lane, and one `processing_revisions` row records
+each attempt (`pending → processing → ready | needs_human | failed`).
+Complaints are urgent and always `needs_human`; low confidence and the
+`other` lane go to a human; noise parks as `ready` with no draft. The
+owner inbox filters are `GET /inbox?filter=all|needs_human|complaints`
+(invalid filter → 422), and threads show lane, status, and summary.
+`POST /messages/:messageId/retry-processing` (session required) appends a
+new revision and is a no-op while one is already `processing`.
 
 ## Run
 
@@ -95,6 +110,7 @@ See `.env.example` for the full list with safe defaults. Highlights:
 | `CONFIG_DIR` | backend | default `<repo>/config` |
 | `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` | backend | seed owner, created only when no operator credentials exist |
 | `BOS_INGRESS_KEY` | backend | bearer token for `POST /inbound/emails` |
+| `AI_ADAPTER` | backend | must be `fake` (or unset); anything else fails boot |
 | `PUBLIC_APP_URL` | backend | quote links |
 | `COOKIE_SECURE` | backend | `true` outside local HTTP |
 | `BOS_API_URL` | web | server-only base URL of the BOS API |
