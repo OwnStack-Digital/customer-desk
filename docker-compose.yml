@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: bos
+      POSTGRES_USER: bos
+      POSTGRES_PASSWORD: bos
+    ports:
+      - "5432:5432"
+    volumes:
+      - bos-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bos -d bos"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  bos-postgres:
