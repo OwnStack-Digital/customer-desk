@@ -22,9 +22,7 @@ export class DrizzleMessageRepository implements MessageRepository {
 
   async insertMessage(message: StoredMessage): Promise<void> {
     if (this.client.dialect === "sqlite") {
-      await this.sqlite()
-        .insert(sqliteMessages)
-        .values(sqliteValues(message));
+      await this.sqlite().insert(sqliteMessages).values(sqliteValues(message));
     } else {
       await this.postgres().insert(pgMessages).values(pgValues(message));
     }
@@ -108,8 +106,7 @@ export class DrizzleMessageRepository implements MessageRepository {
       if (
         !current ||
         message.receivedAt > current.receivedAt ||
-        (message.receivedAt === current.receivedAt &&
-          message.id > current.id)
+        (message.receivedAt === current.receivedAt && message.id > current.id)
       ) {
         latest.set(message.conversationId, message);
       }

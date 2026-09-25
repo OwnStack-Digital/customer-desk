@@ -6,14 +6,8 @@ import {
   Param,
   UseGuards,
 } from "@nestjs/common";
-import {
-  GET_THREAD,
-  type GetThread,
-} from "../../../core/use-cases/get-thread";
-import {
-  LIST_INBOX,
-  type ListInbox,
-} from "../../../core/use-cases/list-inbox";
+import { GET_THREAD, type GetThread } from "../../../core/use-cases/get-thread";
+import { LIST_INBOX, type ListInbox } from "../../../core/use-cases/list-inbox";
 import { CONFIG } from "../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../outbound/config-files/loader";
 import { SessionGuard } from "./session.guard";

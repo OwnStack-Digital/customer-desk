@@ -16,12 +16,21 @@ interface TableShape {
   name: string;
   columns: string[];
   primaryKeys: string[];
-  uniqueNames: string[];
   indexNames: string[];
 }
 
 function pgShape(table: Parameters<typeof getTableConfig>[0]): TableShape {
   const config = getTableConfig(table);
+  const uniqueNames = config.uniqueConstraints
+    .map((constraint) => constraint.name)
+    .filter((name): name is string => typeof name === "string");
+  const indexNames = config.indexes
+    .map((index) => index.config.name)
+    .filter((name): name is string => typeof name === "string");
+  // Postgres exposes unique constraints and unique indexes separately;
+  // SQLite only has unique indexes. Compare the union so both dialects
+  // must agree on every index-like name.
+  const allIndexNames = [...new Set([...uniqueNames, ...indexNames])].sort();
   return {
     name: config.name,
     columns: config.columns.map((column) => column.name).sort(),
@@ -29,14 +38,7 @@ function pgShape(table: Parameters<typeof getTableConfig>[0]): TableShape {
       .filter((column) => column.primary)
       .map((column) => column.name)
       .sort(),
-    uniqueNames: config.uniqueConstraints
-      .map((constraint) => constraint.name)
-      .filter((name): name is string => typeof name === "string")
-      .sort(),
-    indexNames: config.indexes
-      .map((index) => index.config.name)
-      .filter((name): name is string => typeof name === "string")
-      .sort(),
+    indexNames: allIndexNames,
   };
 }
 
@@ -44,6 +46,14 @@ function sqliteShape(
   table: Parameters<typeof getSqliteTableConfig>[0],
 ): TableShape {
   const config = getSqliteTableConfig(table);
+  const uniqueNames = config.indexes
+    .filter((index) => index.config.unique)
+    .map((index) => index.config.name)
+    .filter((name): name is string => typeof name === "string");
+  const indexNames = config.indexes
+    .map((index) => index.config.name)
+    .filter((name): name is string => typeof name === "string");
+  const allIndexNames = [...new Set([...uniqueNames, ...indexNames])].sort();
   return {
     name: config.name,
     columns: config.columns.map((column) => column.name).sort(),
@@ -51,12 +61,7 @@ function sqliteShape(
       .filter((column) => column.primary)
       .map((column) => column.name)
       .sort(),
-    uniqueNames: config.indexes
-      .filter((index) => index.config.unique)
-      .map((index) => index.config.name)
-      .filter((name): name is string => typeof name === "string")
-      .sort(),
-    indexNames: config.indexes.map((index) => index.config.name).sort(),
+    indexNames: allIndexNames,
   };
 }
 

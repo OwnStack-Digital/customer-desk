@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { collectViolations } from "./architecture-check";
+import { collectViolations, collectWebViolations } from "./architecture-check";
 
 const tempDirs: string[] = [];
 
@@ -105,5 +105,39 @@ describe("collectViolations", () => {
       "../apps/backend/src/core",
     );
     expect(collectViolations(realCoreDir)).toEqual([]);
+  });
+
+  it("flags web drizzle and backend-source imports, skipping build output", () => {
+    const webDir = mkdtempSync(join(tmpdir(), "bos-arch-web-"));
+    tempDirs.push(webDir);
+    writeFileSync(
+      join(webDir, "page.tsx"),
+      'import { db } from "drizzle-orm";\n',
+    );
+    writeFileSync(
+      join(webDir, "api.ts"),
+      'import { repo } from "../../backend/src/adapters/thing";\n',
+    );
+    // node_modules and .next must be skipped, not scanned.
+    mkdirSync(join(webDir, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(
+      join(webDir, "node_modules", "pkg", "bad.ts"),
+      'import { db } from "drizzle-orm";\n',
+    );
+    mkdirSync(join(webDir, ".next"), { recursive: true });
+    writeFileSync(
+      join(webDir, ".next", "page.js"),
+      'import { db } from "drizzle-orm";\n',
+    );
+
+    const violations = collectWebViolations(webDir);
+    expect(violations).toHaveLength(2);
+    expect(violations.join("\n")).toContain('imports "drizzle-orm"');
+    expect(violations.join("\n")).toContain("imports backend source");
+  });
+
+  it("finds zero violations in the real web tree", () => {
+    const realWebDir = join(import.meta.dirname ?? ".", "../apps/web");
+    expect(collectWebViolations(realWebDir)).toEqual([]);
   });
 });

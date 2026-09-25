@@ -1,18 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
-import type {
-  ConversationRepository,
-} from "../ports/conversation-repository";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
+import type { OrganizationProfile } from "../domain/config";
 import type {
   Conversation,
   InboundEmail,
   StoredMessage,
 } from "../domain/messaging";
 import { InboundValidationError } from "../domain/messaging";
-import type { OrganizationProfile } from "../domain/config";
+import type { Clock } from "../ports/clock";
+import type { ConversationRepository } from "../ports/conversation-repository";
+import type { IdGenerator } from "../ports/id-generator";
+import type { MessageRepository } from "../ports/message-repository";
+import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
 import { GetThread } from "./get-thread";
 import { ListInbox } from "./list-inbox";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
@@ -90,8 +88,7 @@ class FakeMessages implements MessageRepository {
   ): Promise<StoredMessage | undefined> {
     return Promise.resolve(
       this.rows.find(
-        (row) =>
-          row.mailboxId === mailboxId && row.messageId === rfcMessageId,
+        (row) => row.mailboxId === mailboxId && row.messageId === rfcMessageId,
       ),
     );
   }
@@ -239,7 +236,10 @@ describe("ReceiveInboundEmail", () => {
         sourceMessageId: "src-2",
         messageId: "<msg-2@customer.example>",
         // The matching ancestor is not the first element.
-        references: ["<unrelated@customer.example>", "<grand@customer.example>"],
+        references: [
+          "<unrelated@customer.example>",
+          "<grand@customer.example>",
+        ],
         subject: "Re: Oven clean",
       }),
     );
@@ -265,21 +265,27 @@ describe("ReceiveInboundEmail", () => {
   it("threads only within the same mailbox", async () => {
     const h = harness();
     // A message in another mailbox reusing the same RFC id must not match.
+    const foreign = email({ sourceMessageId: "src-foreign" });
     h.messages.rows.push({
-      ...email({ sourceMessageId: "src-foreign" }),
       id: "ulid-foreign",
       organizationId: ORG,
       mailboxId: "mb_other",
       conversationId: "ulid-foreign-conversation",
       direction: "inbound",
+      sourceMessageId: foreign.sourceMessageId,
       messageId: "<shared@customer.example>",
       inReplyTo: null,
       references: null,
+      fromAddress: foreign.from.address,
       fromName: null,
+      to: [...foreign.to],
       cc: null,
       replyTo: null,
+      subject: foreign.subject ?? null,
+      text: foreign.text ?? null,
       html: null,
       attachments: null,
+      receivedAt: foreign.receivedAt,
       sentAt: null,
     });
     const mine = await h.receive.run(
@@ -323,9 +329,9 @@ describe("ReceiveInboundEmail", () => {
     await expect(
       h.receive.run(email({ receivedAt: "not-a-date" })),
     ).rejects.toBeInstanceOf(InboundValidationError);
-    await expect(
-      h.receive.run(email({ to: [""] })),
-    ).rejects.toBeInstanceOf(InboundValidationError);
+    await expect(h.receive.run(email({ to: [""] }))).rejects.toBeInstanceOf(
+      InboundValidationError,
+    );
     expect(h.messages.rows).toHaveLength(0);
     expect(h.conversations.rows).toHaveLength(0);
   });
@@ -335,7 +341,10 @@ describe("ListInbox", () => {
   it("lists newest activity first with pending processing and a text preview", async () => {
     const h = harness();
     const older = await h.receive.run(
-      email({ sourceMessageId: "src-1", receivedAt: "2025-06-01T00:00:00.000Z" }),
+      email({
+        sourceMessageId: "src-1",
+        receivedAt: "2025-06-01T00:00:00.000Z",
+      }),
     );
     const newer = await h.receive.run(
       email({
@@ -410,9 +419,9 @@ describe("GetThread", () => {
     });
     expect(thread?.messages[1]?.text).toBe("Any chance of Saturday?");
     // HTML is stored but never returned to the UI.
-    expect(
-      thread?.messages.every((message) => !("html" in message)),
-    ).toBe(true);
+    expect(thread?.messages.every((message) => !("html" in message))).toBe(
+      true,
+    );
   });
 
   it("resolves an unknown conversation to undefined", async () => {

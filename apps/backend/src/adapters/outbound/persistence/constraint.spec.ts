@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createPersistenceClient,
   PERSISTENCE_CLIENT,
@@ -92,21 +92,26 @@ describe("messages inbound dedupe constraint (SQLite)", () => {
     // Same (mailboxId, sourceMessageId) inbound pair: rejected by the
     // partial unique index, not just the use-case dedupe check.
     expect(() =>
-      db.insert(sqliteMessages)
+      db
+        .insert(sqliteMessages)
         .values(messageRow({ id: "msg-2", direction: "inbound" }))
         .run(),
-    ).toThrow(/UNIQUE constraint failed: messages\.mailbox_id, messages\.source_message_id/);
+    ).toThrow(
+      /UNIQUE constraint failed: messages\.mailbox_id, messages\.source_message_id/,
+    );
 
     // Outbound rows may share the source pair (the index is partial).
     expect(() =>
-      db.insert(sqliteMessages)
+      db
+        .insert(sqliteMessages)
         .values(messageRow({ id: "msg-3", direction: "outbound" }))
         .run(),
     ).not.toThrow();
 
     // Another mailbox may reuse the same source id.
     expect(() =>
-      db.insert(sqliteMessages)
+      db
+        .insert(sqliteMessages)
         .values(
           messageRow({
             id: "msg-4",

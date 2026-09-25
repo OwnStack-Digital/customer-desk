@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
-  index as pgIndex,
   jsonb,
+  index as pgIndex,
   pgTable,
+  uniqueIndex as pgUniqueIndex,
   text,
   unique,
-  uniqueIndex as pgUniqueIndex,
 } from "drizzle-orm/pg-core";
 import {
   index,

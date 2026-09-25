@@ -77,9 +77,9 @@ import { UlidGenerator } from "../../outbound/security/ulid-id-generator";
 import { AuthController } from "./auth.controller";
 import { ErrorBodyFilter } from "./error-body.filter";
 import { HealthController } from "./health.controller";
+import { InboxController } from "./inbox.controller";
 import { IngressController } from "./ingress.controller";
 import { IngressGuard } from "./ingress.guard";
-import { InboxController } from "./inbox.controller";
 import { SessionGuard } from "./session.guard";
 
 /** 7-day absolute session lifetime (docs/PLAN.md frozen choices). */

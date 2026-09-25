@@ -33,9 +33,7 @@ export class DrizzleConversationRepository implements ConversationRepository {
     return rows.find((row) => row.organizationId === organizationId);
   }
 
-  async listByOrganization(
-    organizationId: string,
-  ): Promise<Conversation[]> {
+  async listByOrganization(organizationId: string): Promise<Conversation[]> {
     const rows =
       this.client.dialect === "sqlite"
         ? await this.sqlite()

@@ -75,9 +75,7 @@
       "indexes": {
         "conversations_organization_idx": {
           "name": "conversations_organization_idx",
-          "columns": [
-            "organization_id"
-          ],
+          "columns": ["organization_id"],
           "isUnique": false
         }
       },
@@ -233,17 +231,12 @@
       "indexes": {
         "messages_conversation_idx": {
           "name": "messages_conversation_idx",
-          "columns": [
-            "conversation_id"
-          ],
+          "columns": ["conversation_id"],
           "isUnique": false
         },
         "messages_inbound_source_unique": {
           "name": "messages_inbound_source_unique",
-          "columns": [
-            "mailbox_id",
-            "source_message_id"
-          ],
+          "columns": ["mailbox_id", "source_message_id"],
           "isUnique": true,
           "where": "direction = 'inbound'"
         }
@@ -253,12 +246,8 @@
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -309,9 +298,7 @@
       "indexes": {
         "operator_credentials_email_unique": {
           "name": "operator_credentials_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -369,9 +356,7 @@
       "indexes": {
         "operator_sessions_token_hash_unique": {
           "name": "operator_sessions_token_hash_unique",
-          "columns": [
-            "token_hash"
-          ],
+          "columns": ["token_hash"],
           "isUnique": true
         }
       },

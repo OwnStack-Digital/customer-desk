@@ -107,8 +107,51 @@ export type Health = { status: "ok" };
 /** Shape returned by POST /auth/login. */
 export type LoginResponse = { operator: { email: string } };
 
-/**
- * Shape returned by GET /inbox. Slice 1 always renders an empty list; slice
- * 2 replaces `unknown` with the real InboxItem from docs/PLAN.md.
- */
-export type Inbox = { items: unknown[] };
+/** Processing state of a message (classifier lanes land in slice 3). */
+export type ProcessingStatus =
+  | "pending"
+  | "processing"
+  | "ready"
+  | "needs_human"
+  | "failed";
+
+/** InboxItem from docs/PLAN.md "JSON shapes the UI needs". */
+export type InboxItem = {
+  conversationId: string;
+  from: { address: string; name?: string };
+  subject?: string;
+  latestAt: string;
+  lane?:
+    | "faq"
+    | "quote"
+    | "service"
+    | "complaint"
+    | "quote_reply"
+    | "other"
+    | "noise";
+  processing: ProcessingStatus;
+  urgent: boolean;
+  automationPaused: boolean;
+  preview: string;
+};
+
+/** Shape returned by GET /inbox. */
+export type InboxPage = { items: InboxItem[] };
+
+/** Thread from docs/PLAN.md (slice 2: conversation + messages only). */
+export type Thread = {
+  conversation: {
+    id: string;
+    customer: { address: string; name?: string };
+    subject?: string;
+    automationPaused: boolean;
+  };
+  messages: Array<{
+    id: string;
+    direction: "inbound" | "outbound";
+    at: string;
+    from: string;
+    subject?: string;
+    text?: string;
+  }>;
+};

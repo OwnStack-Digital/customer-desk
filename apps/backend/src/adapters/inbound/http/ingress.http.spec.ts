@@ -5,8 +5,7 @@ import type { ExecutionContext, INestApplication } from "@nestjs/common";
 import { UnauthorizedException } from "@nestjs/common";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import request from "supertest";
-import { vi } from "vitest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppModule } from "../../../app.module";
 import {
   createPersistenceClient,

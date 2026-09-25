@@ -19,12 +19,10 @@ export class ListInbox {
   constructor(private readonly deps: ListInboxDeps) {}
 
   async run(organizationId: string): Promise<InboxPage> {
-    const conversations = await this.deps.conversations.listByOrganization(
-      organizationId,
-    );
-    const latest = await this.deps.messages.findLatestPerConversation(
-      organizationId,
-    );
+    const conversations =
+      await this.deps.conversations.listByOrganization(organizationId);
+    const latest =
+      await this.deps.messages.findLatestPerConversation(organizationId);
     const latestByConversation = new Map(
       latest.map((message) => [message.conversationId, message]),
     );

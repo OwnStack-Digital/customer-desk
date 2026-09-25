@@ -71,6 +71,10 @@ function listSourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
+      // Dependencies and build output are never part of the boundary.
+      if (entry.name === "node_modules" || entry.name === ".next") {
+        continue;
+      }
       files.push(...listSourceFiles(path));
     } else if (/\.spec\.ts$/.test(entry.name)) {
     } else if (/\.(ts|tsx|mts|cts)$/.test(entry.name)) {
@@ -80,23 +84,60 @@ function listSourceFiles(dir: string): string[] {
   return files;
 }
 
-/** CLI entry: checks the real repo's core tree. */
+/**
+ * Web-boundary check (PLAN.md slice 2 acceptance): `apps/web` never
+ * imports Drizzle, a database driver, or backend source; it talks to the
+ * API over HTTP only via `lib/bos-api.ts`.
+ */
+const WEB_FORBIDDEN_SPECIFIERS = ["drizzle-orm", "better-sqlite3", "postgres"];
+
+const WEB_FORBIDDEN_PATTERN = /(^|\/)backend\/(src|dist)\//;
+
+export function collectWebViolations(webDir: string): string[] {
+  const violations: string[] = [];
+  for (const file of listSourceFiles(webDir).sort()) {
+    for (const specifier of extractImportSpecifiers(
+      readFileSync(file, "utf8"),
+    )) {
+      let violation: string | null = null;
+      if (WEB_FORBIDDEN_SPECIFIERS.includes(specifier)) {
+        violation = `imports "${specifier}"`;
+      } else if (
+        (specifier.startsWith(".") || specifier.startsWith("@/")) &&
+        WEB_FORBIDDEN_PATTERN.test(specifier)
+      ) {
+        violation = `imports backend source "${specifier}"`;
+      }
+      if (violation) {
+        violations.push(`${relativize(file, webDir)}: ${violation}`);
+      }
+    }
+  }
+  return violations;
+}
+
+/** CLI entry: checks the real repo's core tree and web app. */
 export function main(): number {
   const coreDir = resolve(
     dirname(process.argv[1] ?? process.cwd()),
     "../apps/backend/src/core",
   );
   const violations = collectViolations(coreDir);
+  const webDir = resolve(
+    dirname(process.argv[1] ?? process.cwd()),
+    "../apps/web",
+  );
+  violations.push(...collectWebViolations(webDir));
   if (violations.length > 0) {
     for (const violation of violations) {
       console.error(`architecture violation: ${violation}`);
     }
     console.error(
-      `architecture check failed: ${violations.length} violation(s) under ${coreDir}`,
+      `architecture check failed: ${violations.length} violation(s)`,
     );
     return 1;
   }
-  console.log(`architecture check passed: ${coreDir}`);
+  console.log(`architecture check passed: ${coreDir}, ${webDir}`);
   return 0;
 }
 

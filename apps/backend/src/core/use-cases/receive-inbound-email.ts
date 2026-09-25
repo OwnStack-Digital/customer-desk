@@ -1,13 +1,13 @@
 import {
-  InboundValidationError,
   type Conversation,
   type InboundEmail,
+  InboundValidationError,
   type ProcessingStatus,
   type StoredMessage,
 } from "../domain/messaging";
 import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
 import type { ConversationRepository } from "../ports/conversation-repository";
+import type { IdGenerator } from "../ports/id-generator";
 import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
 
