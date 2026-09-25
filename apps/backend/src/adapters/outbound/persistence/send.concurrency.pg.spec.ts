@@ -91,13 +91,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Carried note 16: the scratch database is always dropped again.
+  // Carried note 16: the scratch database is always dropped again. The
+  // drizzle client may still hold a pooled connection to it, so the drop
+  // forces active connections off first (Postgres 13+).
   const base = TEST_DATABASE_URL;
   if (!base || !scratchName) {
     return;
   }
   const sql = postgres(base, { max: 1 });
-  await sql.unsafe(`DROP DATABASE "${scratchName}"`);
+  await sql.unsafe(`DROP DATABASE "${scratchName}" WITH (FORCE)`);
   await sql.end();
 });
 
