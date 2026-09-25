@@ -300,11 +300,11 @@ The demonstrator is done when all of the following are true on a fresh database:
 
 **Depends on:** slice 0.
 
-- [ ] **1.1** Migration: `operator_credentials`, `operator_sessions`.
-- [ ] **1.2** `OperatorCredentialRepository`, `SessionRepository`, `PasswordHasher`, `Clock`, `IdGenerator` ports. Hasher and id generator are infrastructure adapters. Use cases stay free of Nest.
-- [ ] **1.3** `Login` and `Logout` use cases. Wrong password and unknown email return the same 401. Seed-on-boot when the credential table is empty.
-- [ ] **1.4** `POST /auth/login`, `POST /auth/logout`, session guard. `GET /inbox` exists and returns `{ items: [] }` only with a live session.
-- [ ] **1.5** Next login page: Server Action calls the API and forwards `Set-Cookie`. A logged-in server render of `/inbox` calls `GET /inbox` with the cookie.
+- [x] **1.1** Migration: `operator_credentials`, `operator_sessions`.
+- [x] **1.2** `OperatorCredentialRepository`, `SessionRepository`, `PasswordHasher`, `Clock`, `IdGenerator` ports. Hasher and id generator are infrastructure adapters. Use cases stay free of Nest.
+- [x] **1.3** `Login` and `Logout` use cases. Wrong password and unknown email return the same 401. Seed-on-boot when the credential table is empty.
+- [x] **1.4** `POST /auth/login`, `POST /auth/logout`, session guard. `GET /inbox` exists and returns `{ items: [] }` only with a live session.
+- [x] **1.5** Next login page: Server Action calls the API and forwards `Set-Cookie`. A logged-in server render of `/inbox` calls `GET /inbox` with the cookie.
 
 **Acceptance:** use-case tests cover wrong password, expired session, and logout revocation without a database. HTTP test covers 401 then 200. No session id appears in logs.
 
