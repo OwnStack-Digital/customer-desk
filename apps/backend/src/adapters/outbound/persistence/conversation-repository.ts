@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Conversation } from "../../../core/domain/messaging";
 import type { ConversationRepository } from "../../../core/ports/conversation-repository";
 import type { PersistenceClient, PostgresDb, SqliteDb } from "./client";
@@ -45,6 +45,31 @@ export class DrizzleConversationRepository implements ConversationRepository {
             .from(pgConversations)
             .where(eq(pgConversations.organizationId, organizationId));
     return rows;
+  }
+
+  async deleteById(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<void> {
+    if (this.client.dialect === "sqlite") {
+      await this.sqlite()
+        .delete(sqliteConversations)
+        .where(
+          and(
+            eq(sqliteConversations.id, conversationId),
+            eq(sqliteConversations.organizationId, organizationId),
+          ),
+        );
+    } else {
+      await this.postgres()
+        .delete(pgConversations)
+        .where(
+          and(
+            eq(pgConversations.id, conversationId),
+            eq(pgConversations.organizationId, organizationId),
+          ),
+        );
+    }
   }
 
   private sqlite(): SqliteDb {

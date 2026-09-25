@@ -65,9 +65,18 @@ export class ReceiveInboundEmail {
     }
 
     const profile = this.deps.profile.getProfile();
-    const conversationId =
-      (await this.resolveConversation(email)) ??
-      (await this.createConversation(email, profile.id, profile.mailboxId));
+    // Note 9: track the conversation this request creates so the
+    // duplicate-race loser can delete its orphan row.
+    let conversationId = await this.resolveConversation(email);
+    let createdConversationId: string | undefined;
+    if (conversationId === undefined) {
+      conversationId = await this.createConversation(
+        email,
+        profile.id,
+        profile.mailboxId,
+      );
+      createdConversationId = conversationId;
+    }
 
     // Note 7: normalize to canonical UTC ISO so string ordering (inbox,
     // threads) is chronological regardless of the connector's offset.
@@ -106,6 +115,21 @@ export class ReceiveInboundEmail {
         email.sourceMessageId,
       );
       if (winner) {
+        // Note 9: this request created a conversation that never received
+        // its message (the insert lost the race). Delete the orphan so the
+        // inbox is not polluted by an empty `pending` conversation.
+        if (createdConversationId) {
+          const remaining = await this.deps.messages.listByConversation(
+            profile.id,
+            createdConversationId,
+          );
+          if (remaining.length === 0) {
+            await this.deps.conversations.deleteById(
+              profile.id,
+              createdConversationId,
+            );
+          }
+        }
         return {
           messageId: winner.id,
           conversationId: winner.conversationId,

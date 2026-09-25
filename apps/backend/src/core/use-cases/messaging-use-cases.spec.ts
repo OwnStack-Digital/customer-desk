@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { InboundEmail, StoredMessage } from "../domain/messaging";
+import type { InboundEmail } from "../domain/messaging";
 import { InboundValidationError } from "../domain/messaging";
 import { ReceiveInboundEmail } from "./receive-inbound-email";
 import {
@@ -11,7 +11,6 @@ import {
   MAILBOX,
   NOW,
   ORG,
-  SequentialIds,
 } from "./testing";
 
 describe("ReceiveInboundEmail", () => {
@@ -311,7 +310,7 @@ describe("ingress hardening (carried notes 6-8)", () => {
     expect(h.conversations.rows).toHaveLength(0);
   });
 
-  it("note 6: a lost insert race re-checks the source key and reports duplicate", async () => {
+  it("note 6 + 9: a lost insert race reports duplicate and deletes the orphan conversation", async () => {
     const h = harness();
     // Simulates the unique-index violation the loser of a concurrent
     // duplicate receives: the initial lookup misses, the insert throws.
@@ -327,8 +326,12 @@ describe("ingress hardening (carried notes 6-8)", () => {
       lookedUp = true;
       return undefined;
     };
-    racing.insertMessage = async (message: StoredMessage) => {
-      await h.messages.insertMessage(message); // would lose the race
+    racing.listByConversation = (
+      organizationId: string,
+      conversationId: string,
+    ) => h.messages.listByConversation(organizationId, conversationId);
+    racing.insertMessage = async () => {
+      // The insert lost the race: nothing is stored, the index throws.
       throw new Error("UNIQUE constraint failed: messages.mailbox_id");
     };
     const raceHarness = new ReceiveInboundEmail({
@@ -346,9 +349,20 @@ describe("ingress hardening (carried notes 6-8)", () => {
         mailboxId: MAILBOX,
       }),
       processing: h.processing,
-      ids: new SequentialIds(),
+      // Distinct ids so the loser's orphan conversation cannot collide with
+      // the winner's conversation id in the fake.
+      ids: {
+        nextId: (() => {
+          let seq = 100;
+          return () => {
+            seq += 1;
+            return `ulid-race-${seq}`;
+          };
+        })(),
+      },
       clock: new FixedClock(),
     });
+    const conversationsBefore = h.conversations.rows.length;
     const result = await raceHarness.run(
       email({ sourceMessageId: "src-race" }),
     );
@@ -358,5 +372,13 @@ describe("ingress hardening (carried notes 6-8)", () => {
       duplicate: true,
       processing: "ready",
     });
+    // Note 9: the loser's just-created conversation had no messages and
+    // was deleted — the inbox keeps exactly the winner's conversation.
+    expect(h.conversations.rows).toHaveLength(conversationsBefore);
+    expect(
+      h.conversations.rows.every((row) => row.id === original.conversationId),
+    ).toBe(true);
+    // No phantom message from the losing insert.
+    expect(h.messages.rows).toHaveLength(1);
   });
 });

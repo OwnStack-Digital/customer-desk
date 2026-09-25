@@ -11,6 +11,13 @@ export interface ConversationRepository {
 
   /** Every conversation of the organization (inbox listing joins this). */
   listByOrganization(organizationId: string): Promise<Conversation[]>;
+
+  /**
+   * Deletes one conversation. Used only for the orphan cleanup on the
+   * duplicate-ingress race (carried review note 9): a conversation this
+   * request created but that ended up with no messages.
+   */
+  deleteById(organizationId: string, conversationId: string): Promise<void>;
 }
 
 export const CONVERSATION_REPOSITORY = "ConversationRepository";
