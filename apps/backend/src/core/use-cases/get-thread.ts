@@ -1,17 +1,19 @@
 import type { Thread } from "../domain/messaging";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { MessageRepository } from "../ports/message-repository";
+import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
 
 export interface GetThreadDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
+  readonly revisions: ProcessingRevisionRepository;
 }
 
 /**
- * One conversation with its messages (PLAN.md task 2.4). Slice 2 returns
- * only the conversation snapshot and plain-text messages; processing,
- * drafts, and quotes arrive in later slices. HTML is never returned.
- * Unknown ids resolve to `undefined` (HTTP layer maps that to 404).
+ * One conversation with its messages (PLAN.md task 3.6). `processing` is the
+ * latest revision of the conversation's latest message; `summary` is always
+ * present once a revision completed. HTML is never returned. Unknown ids
+ * resolve to `undefined` (HTTP layer maps that to 404).
  */
 export class GetThread {
   constructor(private readonly deps: GetThreadDeps) {}
@@ -31,6 +33,13 @@ export class GetThread {
       organizationId,
       conversationId,
     );
+    const latestMessage = messages[messages.length - 1];
+    const latestRevision = latestMessage
+      ? await this.deps.revisions.findLatestByMessage(
+          organizationId,
+          latestMessage.id,
+        )
+      : undefined;
     return {
       conversation: {
         id: conversation.id,
@@ -49,6 +58,13 @@ export class GetThread {
         subject: message.subject ?? undefined,
         text: message.text ?? undefined,
       })),
+      processing: latestRevision
+        ? {
+            status: latestRevision.status,
+            lane: latestRevision.lane ?? undefined,
+            summary: latestRevision.summary ?? "",
+          }
+        : undefined,
     };
   }
 }

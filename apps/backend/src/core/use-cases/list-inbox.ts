@@ -1,24 +1,31 @@
-import type { InboxItem, InboxPage } from "../domain/messaging";
+import type { InboxFilter, InboxItem, InboxPage } from "../domain/messaging";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { MessageRepository } from "../ports/message-repository";
+import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
 
 export interface ListInboxDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
+  readonly revisions: ProcessingRevisionRepository;
 }
 
 /** Plain-text inbox preview length (slice 2: text only, never HTML). */
 export const PREVIEW_MAX_LENGTH = 140;
 
 /**
- * Lists conversations newest activity first (PLAN.md task 2.4). Until the
- * classifier lands (slice 3) every item is `processing: "pending"`, not
- * urgent, and has no lane.
+ * Lists conversations newest activity first (PLAN.md task 3.6). Each item
+ * carries the processing outcome of its latest message's latest revision:
+ * `pending` when no revision exists yet, the revision status otherwise.
+ * Complaints are urgent; `needs_human` / `complaints` are the owner
+ * filters. Filtering happens here, not in a controller.
  */
 export class ListInbox {
   constructor(private readonly deps: ListInboxDeps) {}
 
-  async run(organizationId: string): Promise<InboxPage> {
+  async run(
+    organizationId: string,
+    filter: InboxFilter = "all",
+  ): Promise<InboxPage> {
     const conversations =
       await this.deps.conversations.listByOrganization(organizationId);
     const latest =
@@ -26,10 +33,18 @@ export class ListInbox {
     const latestByConversation = new Map(
       latest.map((message) => [message.conversationId, message]),
     );
+    const revisions =
+      await this.deps.revisions.findLatestPerMessage(organizationId);
+    const revisionByMessage = new Map(
+      revisions.map((revision) => [revision.messageId, revision]),
+    );
 
     const items = conversations
       .map((conversation): InboxItem => {
         const message = latestByConversation.get(conversation.id);
+        const revision = message
+          ? revisionByMessage.get(message.id)
+          : undefined;
         return {
           conversationId: conversation.id,
           from: {
@@ -38,12 +53,20 @@ export class ListInbox {
           },
           subject: conversation.subject ?? undefined,
           latestAt: message ? message.receivedAt : conversation.createdAt,
-          processing: "pending",
-          urgent: false,
+          lane: revision?.lane ?? undefined,
+          processing: revision?.status ?? "pending",
+          urgent: revision?.lane === "complaint",
           automationPaused: conversation.automationPaused,
           preview: previewOf(message?.text ?? undefined),
         };
       })
+      .filter((item) =>
+        filter === "needs_human"
+          ? item.processing === "needs_human"
+          : filter === "complaints"
+            ? item.lane === "complaint"
+            : true,
+      )
       // ISO-8601 strings sort chronologically as plain text.
       .sort((left, right) => right.latestAt.localeCompare(left.latestAt));
 

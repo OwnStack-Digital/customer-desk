@@ -1,20 +1,24 @@
-import {
-  type Conversation,
-  type InboundEmail,
-  InboundValidationError,
-  type ProcessingStatus,
-  type StoredMessage,
+import type {
+  Conversation,
+  InboundEmail,
+  ProcessingStatus,
+  StoredMessage,
 } from "../domain/messaging";
+import { InboundValidationError } from "../domain/messaging";
 import type { Clock } from "../ports/clock";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { IdGenerator } from "../ports/id-generator";
 import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
+import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { ProcessInboundMessage } from "./process-inbound-message";
 
 export interface ReceiveInboundEmailDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
+  readonly revisions: ProcessingRevisionRepository;
   readonly profile: OrganizationProfileRepository;
+  readonly processing: ProcessInboundMessage;
   readonly ids: IdGenerator;
   readonly clock: Clock;
 }
@@ -33,7 +37,9 @@ export interface ReceiveInboundEmailResult {
  * `inReplyTo` / `references` against stored RFC Message-IDs in the same
  * mailbox, or create a new conversation. Subject and sender are never
  * threading signals. The message is committed by the repository insert
- * before this use case returns; no processing happens yet.
+ * before processing starts (task 3.4): the post-commit
+ * `ProcessInboundMessage` call records the durable outcome, and its failure
+ * never rolls the receipt back.
  */
 export class ReceiveInboundEmail {
   constructor(private readonly deps: ReceiveInboundEmailDeps) {}
@@ -46,12 +52,15 @@ export class ReceiveInboundEmail {
       email.sourceMessageId,
     );
     if (existing) {
-      // Receipt already happened; a replay never restarts anything.
+      // Receipt already happened; a replay never restarts processing.
       return {
         messageId: existing.id,
         conversationId: existing.conversationId,
         duplicate: true,
-        processing: "pending",
+        processing: await this.currentStatus(
+          existing.organizationId,
+          existing.id,
+        ),
       };
     }
 
@@ -60,6 +69,10 @@ export class ReceiveInboundEmail {
       (await this.resolveConversation(email)) ??
       (await this.createConversation(email, profile.id, profile.mailboxId));
 
+    // Note 7: normalize to canonical UTC ISO so string ordering (inbox,
+    // threads) is chronological regardless of the connector's offset.
+    const receivedAt = new Date(email.receivedAt).toISOString();
+    const sentAt = email.sentAt ? new Date(email.sentAt).toISOString() : null;
     const message: StoredMessage = {
       id: this.deps.ids.nextId(),
       organizationId: profile.id,
@@ -79,16 +92,54 @@ export class ReceiveInboundEmail {
       text: email.text ?? null,
       html: email.html ?? null,
       attachments: email.attachments ? [...email.attachments] : null,
-      receivedAt: email.receivedAt,
-      sentAt: email.sentAt ?? null,
+      receivedAt,
+      sentAt,
     };
-    await this.deps.messages.insertMessage(message);
+    try {
+      await this.deps.messages.insertMessage(message);
+    } catch (error) {
+      // Note 6: a concurrent duplicate loses the check-then-insert race and
+      // hits the unique index. Re-run the dedupe lookup: a hit means the
+      // receipt already happened (200 duplicate), anything else rethrows.
+      const winner = await this.deps.messages.findBySourceKey(
+        email.mailboxId,
+        email.sourceMessageId,
+      );
+      if (winner) {
+        return {
+          messageId: winner.id,
+          conversationId: winner.conversationId,
+          duplicate: true,
+          processing: await this.currentStatus(
+            winner.organizationId,
+            winner.id,
+          ),
+        };
+      }
+      throw error;
+    }
+
+    // Receipt is durable. Processing runs after the commit; its failure
+    // is recorded as a `failed` revision and never rolls receipt back.
+    const result = await this.deps.processing.run(profile.id, message.id);
     return {
       messageId: message.id,
       conversationId,
       duplicate: false,
-      processing: "pending",
+      processing: result.status,
     };
+  }
+
+  /** Latest revision status of an already-stored message (`pending` if none). */
+  private async currentStatus(
+    organizationId: string,
+    messageId: string,
+  ): Promise<ProcessingStatus> {
+    const latest = await this.deps.revisions.findLatestByMessage(
+      organizationId,
+      messageId,
+    );
+    return latest?.status ?? "pending";
   }
 
   /** Threads against a stored RFC Message-ID in the same mailbox, or null. */
@@ -159,6 +210,20 @@ export function validateInboundEmail(
   }
   if (email.from.name !== undefined && typeof email.from.name !== "string") {
     throw new InboundValidationError("from.name must be a string");
+  }
+  // Note 8: the optional free-text fields must be strings when present.
+  const freeText: Array<[string, unknown]> = [
+    ["subject", email.subject],
+    ["text", email.text],
+    ["html", email.html],
+    ["replyTo", email.replyTo],
+    ["messageId", email.messageId],
+    ["inReplyTo", email.inReplyTo],
+  ];
+  for (const [field, value] of freeText) {
+    if (value !== undefined && typeof value !== "string") {
+      throw new InboundValidationError(`${field} must be a string`);
+    }
   }
   if (!Array.isArray(email.to) || email.to.some((item) => !nonEmpty(item))) {
     throw new InboundValidationError("to must be a list of addresses");
