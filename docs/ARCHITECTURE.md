@@ -22,7 +22,7 @@ flowchart LR
   Source[Test client / email connector] -->|normalized email| API
 
   subgraph BOS
-    Web[Web app] -->|HTTP| API[BOS API]
+    Web[Next.js web - SSR/RSC] -->|HTTP| API[BOS API]
     API --> Core[Application core]
     Worker[Delivery worker - pilot] --> Core
     Core --> DB[(Operational DB)]
@@ -34,7 +34,9 @@ flowchart LR
   Sender -.->|pilot| Provider[Email provider]
 ```
 
-The web app always calls the BOS API; it never calls the core directly. API controller groups are **owner** (inbox, drafts, approval, outbox), **inbound email**, and **public quote**. A pilot delivery worker is another primary adapter that invokes `DeliverQueuedEmail`; external systems never access repositories directly.
+The web app is a **Next.js** UI (App Router, SSR/RSC). It always calls the BOS API over HTTP—including from Server Components, Server Actions, and any thin BFF/proxy routes. It never imports core, repositories, or adapters and never hosts domain rules. API controller groups live only on the backend: **owner** (inbox, drafts, approval, outbox), **inbound email**, and **public quote**. A pilot delivery worker is another primary adapter that invokes `DeliverQueuedEmail`; external systems never access repositories directly.
+
+Next.js may improve cookie/session UX and server-render owner screens or the public quote page; authorization still belongs to the BOS API (operator session or quote token). Quote accept/decline remains an explicit POST, not a side effect of rendering a link.
 
 ### Trust boundaries
 
@@ -106,7 +108,7 @@ sequenceDiagram
   participant UC as Use cases
   participant DB as Operational DB
   participant AI as LLM ports
-  participant UI as BOS web app
+  participant UI as Next.js web
   participant Op as Operator
 
   Src->>API: normalized inbound email
@@ -231,7 +233,7 @@ Inbound email and retrieved text are untrusted data, never instructions that aut
 ```mermaid
 flowchart LR
   subgraph Clients
-    Web[BOS web app]
+    Web[Next.js web - SSR/RSC]
     Connector[Email connector / API client]
     Customer[Customer quote link]
     Worker[Delivery worker]
@@ -298,34 +300,40 @@ Repository names describe application-owned resources, not storage technology. E
 
 ## Folder map
 
+Backend and web are separate apps under `apps/`; they are not mixed at the project root. Deploy as separate runtimes: Next.js server, BOS API, and later the delivery worker.
+
 ```text
-src/
-  core/                         # application boundary
-    use-cases/                  # flat, prominent application actions
-      receive-inbound-email.ts
-      process-inbound-message.ts
-      review-draft.ts
-      send-approved-draft.ts
-      record-quote-decision.ts
-      ...
-    domain/                     # few types, states, pure pricing
-    ports/                      # repositories and external capabilities
-  adapters/
-    inbound/http/               # BOS API controllers
-    outbound/
-      persistence/              # database repositories
-      config-files/             # file-backed config repositories
-      email/                    # outbox now; provider later
-      ai/                       # classifier/drafter
-  infrastructure/              # server, database setup, composition root
-  main.ts
-web/                            # BOS UI; calls the API
+apps/
+  backend/                      # BOS API + application core (sole domain host)
+    src/
+      core/                     # application boundary
+        use-cases/              # flat, prominent application actions
+          receive-inbound-email.ts
+          process-inbound-message.ts
+          review-draft.ts
+          send-approved-draft.ts
+          record-quote-decision.ts
+          ...
+        domain/                 # few types, states, pure pricing
+        ports/                  # repositories and external capabilities
+      adapters/
+        inbound/http/           # BOS API controllers
+        outbound/
+          persistence/          # database repositories
+          config-files/         # file-backed config repositories
+          email/                # outbox now; provider later
+          ai/                   # classifier/drafter
+      infrastructure/          # server, database setup, composition root
+      main.ts
+  web/                          # Next.js App Router UI (SSR/RSC)
+    app/                        # owner screens + public quote route
+    lib/bos-api.ts              # typed HTTP client to BOS API only
 config/                         # org, KB, price list
 docs/PRODUCT.md
 docs/ARCHITECTURE.md
 ```
 
-Use cases are the input ports; do not create duplicate `ports/input` interfaces. `core` imports nothing from adapters, infrastructure, or web. Keep use cases flat until their number—not anticipated future complexity—requires grouping. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
+Use cases are the input ports; do not create duplicate `ports/input` interfaces. `apps/backend` core imports nothing from adapters, infrastructure, or `apps/web`. `apps/web` must not import backend source or open the operational DB; optional Next route handlers are transport-only (cookie/BFF), not a second API. Keep use cases flat until their number—not anticipated future complexity—requires grouping. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
 
 ## Hard rules
 
