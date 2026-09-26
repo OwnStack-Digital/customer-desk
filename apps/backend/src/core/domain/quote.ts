@@ -16,6 +16,10 @@ export type QuoteVersionStatus =
   | "declined"
   | "superseded";
 
+/** Statuses the owner portal may show. A superseded token is revoked and
+ * stays off the thread and the inbox. */
+export type OwnerVisibleQuoteStatus = Exclude<QuoteVersionStatus, "superseded">;
+
 /** The customer's explicit decision (public POST only). */
 export type QuoteDecision = "accept" | "decline";
 

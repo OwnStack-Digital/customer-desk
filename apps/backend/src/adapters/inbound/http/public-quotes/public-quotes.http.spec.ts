@@ -177,12 +177,27 @@ describe("public quote routes over HTTP (task 6.5)", () => {
   });
 
   it("records an explicit accept and its customer audit, then replays idempotently", async () => {
-    const { token } = await sentQuote("src-pq-2");
+    const { token, conversationId } = await sentQuote("src-pq-2");
     const accept = await request(app.getHttpServer())
       .post(`/public/quotes/${token}/decision`)
       .send({ decision: "accept" });
     expect(accept.status).toBe(200);
     expect(accept.body).toMatchObject({ status: "accepted", canDecide: false });
+
+    const login = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({ email: OWNER_EMAIL, password: OWNER_PASSWORD });
+    const cookie = login.headers["set-cookie"]?.[0]?.split(";")[0] ?? "";
+    const ownerThread = await request(app.getHttpServer())
+      .get(`/threads/${conversationId}`)
+      .set("Cookie", cookie);
+    expect(ownerThread.status).toBe(200);
+    expect(ownerThread.body.openQuote).toBeUndefined();
+    expect(ownerThread.body.quote).toMatchObject({
+      status: "accepted",
+      decision: "accept",
+      currency: "AUD",
+    });
 
     const db = client.open() as SqliteDb;
     const audits = await db

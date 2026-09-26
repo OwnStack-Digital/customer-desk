@@ -133,6 +133,8 @@ export type InboxItem = {
   urgent: boolean;
   automationPaused: boolean;
   preview: string;
+  /** Newest non-superseded quote, including a recorded accept/decline. */
+  quoteStatus?: "prepared" | "sent" | "accepted" | "declined";
 };
 
 /** Shape returned by GET /inbox. */
@@ -223,6 +225,15 @@ export type Thread = {
     status: string;
     totalMinor: number;
     currency: string;
+  };
+  /** Newest quote still visible to the owner, including accept/decline. */
+  quote?: {
+    quoteVersionId: string;
+    status: "prepared" | "sent" | "accepted" | "declined";
+    totalMinor: number;
+    currency: string;
+    decision?: "accept" | "decline";
+    decidedAt?: string;
   };
 };
 

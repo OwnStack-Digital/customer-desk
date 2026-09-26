@@ -1,12 +1,15 @@
 import type { InboxFilter, InboxItem, InboxPage } from "../domain/messaging";
+import type { OwnerVisibleQuoteStatus } from "../domain/quote";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { MessageRepository } from "../ports/message-repository";
 import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
 
 export interface ListInboxDeps {
   readonly conversations: ConversationRepository;
   readonly messages: MessageRepository;
   readonly revisions: ProcessingRevisionRepository;
+  readonly quotes: QuoteVersionRepository;
 }
 
 /** Plain-text inbox preview length (slice 2: text only, never HTML). */
@@ -18,6 +21,10 @@ export const PREVIEW_MAX_LENGTH = 140;
  * `pending` when no revision exists yet, the revision status otherwise.
  * Complaints are urgent; `needs_human` / `complaints` are the owner
  * filters. Filtering happens here, not in a controller.
+ *
+ * `quoteStatus` is the newest non-superseded quote. A public accept or
+ * decline does not insert a message, so without this the inbox cannot
+ * show that the customer decided.
  */
 export class ListInbox {
   constructor(private readonly deps: ListInboxDeps) {}
@@ -38,6 +45,11 @@ export class ListInbox {
     const revisionByMessage = new Map(
       revisions.map((revision) => [revision.messageId, revision]),
     );
+    const quotes =
+      await this.deps.quotes.findLatestVisiblePerConversation(organizationId);
+    const quoteByConversation = new Map(
+      quotes.map((quote) => [quote.conversationId, quote]),
+    );
 
     const items = conversations
       .map((conversation): InboxItem => {
@@ -45,6 +57,11 @@ export class ListInbox {
         const revision = message
           ? revisionByMessage.get(message.id)
           : undefined;
+        const quote = quoteByConversation.get(conversation.id);
+        const quoteStatus =
+          quote && quote.status !== "superseded"
+            ? (quote.status as OwnerVisibleQuoteStatus)
+            : undefined;
         return {
           conversationId: conversation.id,
           from: {
@@ -58,6 +75,7 @@ export class ListInbox {
           urgent: revision?.lane === "complaint",
           automationPaused: conversation.automationPaused,
           preview: previewOf(message?.text ?? undefined),
+          ...(quoteStatus ? { quoteStatus } : {}),
         };
       })
       .filter((item) =>

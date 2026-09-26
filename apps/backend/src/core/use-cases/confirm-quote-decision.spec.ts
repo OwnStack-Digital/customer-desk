@@ -65,6 +65,14 @@ describe("ConfirmQuoteDecision (task 7.3)", () => {
       entityType: "quote_version",
       entityId: quoteVersionId,
     });
+    const thread = await h.getThread.run(ORG, conversationId);
+    expect(thread?.openQuote).toBeUndefined();
+    expect(thread?.quote).toMatchObject({
+      quoteVersionId,
+      status: "accepted",
+      decision: "accept",
+      decidedAt: NOW,
+    });
   });
 
   it("records a decline the same way", async () => {

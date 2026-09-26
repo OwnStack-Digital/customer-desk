@@ -1,4 +1,5 @@
-import type { Thread } from "../domain/messaging";
+import type { Thread, ThreadQuote } from "../domain/messaging";
+import type { OwnerVisibleQuoteStatus, QuoteVersion } from "../domain/quote";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { MessageRepository } from "../ports/message-repository";
@@ -23,6 +24,9 @@ export interface GetThreadDeps {
  * immutable quote snapshot (never the current price list), and
  * `openQuote` reports the conversation's newest `prepared`/`sent` quote
  * version while one is still awaiting the customer's decision.
+ * `quote` is that same version, or the newest accepted/declined version
+ * once the customer (or the operator, confirming a reply) has decided.
+ * Superseded versions stay hidden.
  */
 export class GetThread {
   constructor(private readonly deps: GetThreadDeps) {}
@@ -77,6 +81,12 @@ export class GetThread {
     // Slice 6: the conversation's open quote version (newest prepared,
     // else newest sent). Decided and superseded versions never appear.
     const openQuote = await this.deps.quotes.findLatestOpenByConversation(
+      organizationId,
+      conversationId,
+    );
+    // A recorded accept/decline is not open, but the owner still needs to
+    // see it. Superseded versions are revoked and stay off the thread.
+    const visibleQuote = await this.deps.quotes.findLatestVisibleByConversation(
       organizationId,
       conversationId,
     );
@@ -141,8 +151,31 @@ export class GetThread {
             },
           }
         : {}),
+      ...(visibleQuote && isOwnerVisible(visibleQuote.status)
+        ? { quote: threadQuoteOf(visibleQuote) }
+        : {}),
     };
   }
+}
+
+function isOwnerVisible(
+  status: QuoteVersion["status"],
+): status is OwnerVisibleQuoteStatus {
+  return status !== "superseded";
+}
+
+function threadQuoteOf(quote: QuoteVersion): ThreadQuote {
+  if (!isOwnerVisible(quote.status)) {
+    throw new Error(`Quote ${quote.id} is not owner-visible.`);
+  }
+  return {
+    quoteVersionId: quote.id,
+    status: quote.status,
+    totalMinor: quote.totalMinor,
+    currency: quote.currency,
+    ...(quote.decision ? { decision: quote.decision } : {}),
+    ...(quote.decidedAt ? { decidedAt: quote.decidedAt } : {}),
+  };
 }
 
 /** DI token (composition root only; the use case itself is framework-free). */

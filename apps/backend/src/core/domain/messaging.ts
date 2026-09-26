@@ -4,6 +4,8 @@
  * `InboundEmail` DTO arrives already parsed; MIME handling is out of scope.
  */
 
+import type { OwnerVisibleQuoteStatus, QuoteDecision } from "./quote";
+
 export type MessageDirection = "inbound" | "outbound";
 
 export type ProcessingStatus =
@@ -104,6 +106,10 @@ export interface InboxItem {
   readonly urgent: boolean;
   readonly automationPaused: boolean;
   readonly preview: string;
+  /** Newest non-superseded quote on this conversation, when one exists.
+   * A public accept/decline does not create a message, so this is the
+   * only inbox signal that the customer decided. */
+  readonly quoteStatus?: OwnerVisibleQuoteStatus;
 }
 
 export interface InboxPage {
@@ -169,13 +175,28 @@ export interface Thread {
     readonly intent: "accept" | "decline" | "change" | "unclear";
     readonly candidateQuoteVersionIds: readonly string[];
   };
-  /** The conversation's newest `prepared`/`sent` quote version, if any. */
+  /** The conversation's newest `prepared`/`sent` quote version, if any.
+   * A recorded accept/decline leaves this unset: the quote is no longer open. */
   readonly openQuote?: {
     readonly quoteVersionId: string;
     readonly status: string;
     readonly totalMinor: number;
     readonly currency: string;
   };
+  /** Newest quote the owner should still see, including a recorded
+   * accept/decline. Absent only when the conversation has no quote, or
+   * every version was superseded. */
+  readonly quote?: ThreadQuote;
+}
+
+/** Owner-visible quote on a thread. Amounts come from the immutable snapshot. */
+export interface ThreadQuote {
+  readonly quoteVersionId: string;
+  readonly status: OwnerVisibleQuoteStatus;
+  readonly totalMinor: number;
+  readonly currency: string;
+  readonly decision?: QuoteDecision;
+  readonly decidedAt?: string;
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */

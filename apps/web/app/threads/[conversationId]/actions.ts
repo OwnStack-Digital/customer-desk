@@ -105,6 +105,19 @@ export async function sendDraft(formData: FormData): Promise<void> {
   back(conversationId);
 }
 
+/** Records the customer's emailed accept/decline on the open quote. */
+export async function confirmQuoteDecision(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const quoteVersionId = String(formData.get("quoteVersionId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  await callApi(conversationId, `/threads/${conversationId}/quote-decision`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ quoteVersionId, decision }),
+  });
+  back(conversationId);
+}
+
 export async function takeOverConversation(formData: FormData): Promise<void> {
   const conversationId = String(formData.get("conversationId") ?? "");
   await callApi(conversationId, `/threads/${conversationId}/take-over`, {

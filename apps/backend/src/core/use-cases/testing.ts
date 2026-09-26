@@ -184,6 +184,16 @@ export class FakePriceList implements PriceListRepository {
   }
 }
 
+function newestQuote(rows: readonly QuoteVersion[]): QuoteVersion | undefined {
+  return [...rows]
+    .sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    )
+    .at(-1);
+}
+
 /** In-memory quote-version store for the slice-6 use-case specs. */
 export class FakeQuoteVersions implements QuoteVersionRepository {
   readonly rows: QuoteVersion[] = [];
@@ -227,14 +237,44 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
         row.conversationId === conversationId &&
         (row.status === "prepared" || row.status === "sent"),
     );
+    return Promise.resolve(newestQuote(open));
+  }
+
+  findLatestVisibleByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<QuoteVersion | undefined> {
     return Promise.resolve(
-      open
-        .sort(
-          (left, right) =>
-            left.createdAt.localeCompare(right.createdAt) ||
-            left.id.localeCompare(right.id),
-        )
-        .at(-1),
+      newestQuote(this.visible(organizationId, conversationId)),
+    );
+  }
+
+  findLatestVisiblePerConversation(
+    organizationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    const latest = new Map<string, QuoteVersion>();
+    for (const row of this.visible(organizationId)) {
+      const current = latest.get(row.conversationId);
+      if (
+        !current ||
+        row.createdAt > current.createdAt ||
+        (row.createdAt === current.createdAt && row.id > current.id)
+      ) {
+        latest.set(row.conversationId, row);
+      }
+    }
+    return Promise.resolve([...latest.values()]);
+  }
+
+  private visible(
+    organizationId: string,
+    conversationId?: string,
+  ): QuoteVersion[] {
+    return this.rows.filter(
+      (row) =>
+        row.organizationId === organizationId &&
+        row.status !== "superseded" &&
+        (conversationId === undefined || row.conversationId === conversationId),
     );
   }
 
@@ -772,7 +812,12 @@ export function harness() {
     ids,
     clock,
   });
-  const listInbox = new ListInbox({ conversations, messages, revisions });
+  const listInbox = new ListInbox({
+    conversations,
+    messages,
+    revisions,
+    quotes,
+  });
   const getThread = new GetThread({
     conversations,
     messages,

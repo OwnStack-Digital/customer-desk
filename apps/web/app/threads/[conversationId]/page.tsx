@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BosApiError, bosApi, type Thread } from "../../../lib/bos-api";
 import {
   approveDraft,
+  confirmQuoteDecision,
   discardDraft,
   editDraft,
   sendDraft,
@@ -40,6 +41,20 @@ function formatTime(iso: string): string {
     : date.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" });
 }
 
+function formatMinor(currency: string, amountMinor: number): string {
+  return `${currency} ${(amountMinor / 100).toFixed(2)}`;
+}
+
+const QUOTE_STATUS_LABEL: Record<
+  NonNullable<Thread["quote"]>["status"],
+  string
+> = {
+  prepared: "Prepared — not sent",
+  sent: "Sent — waiting for the customer",
+  accepted: "Accepted",
+  declined: "Declined",
+};
+
 const buttonStyle = {
   padding: "0.4rem 0.9rem",
   borderRadius: "8px",
@@ -62,6 +77,88 @@ const dangerButtonStyle = {
   color: "#b00020",
   borderColor: "#b00020",
 } as const;
+
+function QuoteReply({
+  conversationId,
+  quoteReply,
+  quote,
+  openQuoteId,
+}: {
+  conversationId: string;
+  quoteReply: NonNullable<Thread["quoteReply"]>;
+  quote: Thread["quote"];
+  openQuoteId: string | undefined;
+}) {
+  const candidate = quoteReply.candidateQuoteVersionIds[0];
+  const recorded =
+    quote !== undefined &&
+    (quote.status === "accepted" || quote.status === "declined") &&
+    (quoteReply.candidateQuoteVersionIds.length === 0 ||
+      quoteReply.candidateQuoteVersionIds.includes(quote.quoteVersionId));
+  const canConfirm =
+    !recorded &&
+    openQuoteId !== undefined &&
+    quoteReply.candidateQuoteVersionIds.length === 1 &&
+    candidate === openQuoteId &&
+    (quoteReply.intent === "accept" || quoteReply.intent === "decline");
+  return (
+    <section
+      style={{
+        margin: "0.75rem 0 0",
+        padding: "0.5rem 0.75rem",
+        border: "1px solid #5b3fa8",
+        borderRadius: "8px",
+        background: "#f4f1fb",
+        fontSize: "0.85rem",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "0.9rem",
+          margin: "0 0 0.35rem",
+          color: "#432892",
+        }}
+      >
+        {recorded
+          ? `Quote reply recorded (${quote?.status})`
+          : "Quote reply (not recorded until confirmed)"}
+      </h2>
+      <p style={{ margin: 0 }}>Customer intent: {quoteReply.intent}</p>
+      <p style={{ margin: "0.25rem 0 0", wordBreak: "break-word" }}>
+        {quoteReply.candidateQuoteVersionIds.length === 1
+          ? `Candidate quote: ${candidate}`
+          : `Candidates: ${quoteReply.candidateQuoteVersionIds.length}`}
+      </p>
+      {canConfirm ? (
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+            marginTop: "0.75rem",
+          }}
+        >
+          <form action={confirmQuoteDecision}>
+            <input type="hidden" name="conversationId" value={conversationId} />
+            <input type="hidden" name="quoteVersionId" value={openQuoteId} />
+            <input type="hidden" name="decision" value="accept" />
+            <button type="submit" style={buttonStyle}>
+              Record accept
+            </button>
+          </form>
+          <form action={confirmQuoteDecision}>
+            <input type="hidden" name="conversationId" value={conversationId} />
+            <input type="hidden" name="quoteVersionId" value={openQuoteId} />
+            <input type="hidden" name="decision" value="decline" />
+            <button type="submit" style={dangerButtonStyle}>
+              Record decline
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 export default async function ThreadPage({
   params,
@@ -209,35 +306,50 @@ export default async function ThreadPage({
               </p>
             </section>
           ) : null}
-          {result.quoteReply ? (
+          {result.quote ? (
             <section
               style={{
                 margin: "0.75rem 0 0",
                 padding: "0.5rem 0.75rem",
-                border: "1px solid #5b3fa8",
+                border: `1px solid ${
+                  result.quote.status === "accepted"
+                    ? "#2e7d32"
+                    : result.quote.status === "declined"
+                      ? "#b00020"
+                      : "#1a1a1a"
+                }`,
                 borderRadius: "8px",
-                background: "#f4f1fb",
+                background:
+                  result.quote.status === "accepted"
+                    ? "#f1f8f1"
+                    : result.quote.status === "declined"
+                      ? "#fff5f6"
+                      : "#f7f7f7",
                 fontSize: "0.85rem",
               }}
             >
-              <h2
-                style={{
-                  fontSize: "0.9rem",
-                  margin: "0 0 0.35rem",
-                  color: "#432892",
-                }}
-              >
-                Quote reply (not recorded until confirmed)
+              <h2 style={{ fontSize: "0.9rem", margin: "0 0 0.35rem" }}>
+                Quote: {QUOTE_STATUS_LABEL[result.quote.status]}
               </h2>
               <p style={{ margin: 0 }}>
-                Customer intent: {result.quoteReply.intent}
+                Total:{" "}
+                {formatMinor(result.quote.currency, result.quote.totalMinor)}
               </p>
-              <p style={{ margin: "0.25rem 0 0", wordBreak: "break-word" }}>
-                {result.quoteReply.candidateQuoteVersionIds.length === 1
-                  ? `Candidate quote: ${result.quoteReply.candidateQuoteVersionIds[0]}`
-                  : `Candidates: ${result.quoteReply.candidateQuoteVersionIds.length}`}
-              </p>
+              {result.quote.decidedAt ? (
+                <p style={{ margin: "0.25rem 0 0", color: "#555" }}>
+                  Decided {formatTime(result.quote.decidedAt)}
+                  {result.quote.decision ? ` · ${result.quote.decision}` : ""}
+                </p>
+              ) : null}
             </section>
+          ) : null}
+          {result.quoteReply ? (
+            <QuoteReply
+              conversationId={conversationId}
+              quoteReply={result.quoteReply}
+              quote={result.quote}
+              openQuoteId={result.openQuote?.quoteVersionId}
+            />
           ) : null}
           {result.draft ? (
             <section

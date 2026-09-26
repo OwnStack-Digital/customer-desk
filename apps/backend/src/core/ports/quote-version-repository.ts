@@ -34,6 +34,24 @@ export interface QuoteVersionRepository {
   ): Promise<QuoteVersion | undefined>;
 
   /**
+   * Newest non-superseded version of a conversation. Includes a recorded
+   * `accepted` / `declined` so the owner portal can show the decision
+   * after the quote leaves the open set.
+   */
+  findLatestVisibleByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<QuoteVersion | undefined>;
+
+  /**
+   * Newest non-superseded version of every conversation in the
+   * organization. Inbox badges read this; superseded versions are omitted.
+   */
+  findLatestVisiblePerConversation(
+    organizationId: string,
+  ): Promise<readonly QuoteVersion[]>;
+
+  /**
    * Conditional `prepared → sent`: stores the token hash, `sent_at`, and
    * `valid_until`. Returns false when the version is no longer
    * `prepared` (e.g. a concurrent send already moved it).

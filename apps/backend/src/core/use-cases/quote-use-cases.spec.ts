@@ -129,6 +129,12 @@ describe("quote lane processing (task 6.3)", () => {
       totalMinor: 22_000,
       currency: "AUD",
     });
+    expect(thread?.quote).toEqual({
+      quoteVersionId: quote?.id,
+      status: "prepared",
+      totalMinor: 22_000,
+      currency: "AUD",
+    });
   });
 
   it("records the minimum charge as an assumption on the draft and the version", async () => {
@@ -379,7 +385,7 @@ describe("public quote decision (task 6.5)", () => {
 
   it("accept records the decision and the customer audit event", async () => {
     const h = harness();
-    const { quote, rawToken } = await sentQuote(h);
+    const { quote, rawToken, received } = await sentQuote(h);
     const { decide } = publicPair(h, new FixedClock());
     const result = await decide.run(ORG, rawToken, "accept");
     expect(result).toMatchObject({ status: "accepted", canDecide: false });
@@ -394,11 +400,29 @@ describe("public quote decision (task 6.5)", () => {
       entityType: "quote_version",
       entityId: quote?.id,
     });
+    // The decision leaves the open set, but the owner thread and inbox
+    // still show it. A public decision inserts no message of its own.
+    const thread = await h.getThread.run(ORG, received.conversationId);
+    expect(thread?.openQuote).toBeUndefined();
+    expect(thread?.quote).toEqual({
+      quoteVersionId: quote?.id,
+      status: "accepted",
+      totalMinor: 7150,
+      currency: "AUD",
+      decision: "accept",
+      decidedAt: NOW,
+    });
+    const inbox = await h.listInbox.run(ORG);
+    expect(
+      inbox.items.find(
+        (item) => item.conversationId === received.conversationId,
+      ),
+    ).toMatchObject({ quoteStatus: "accepted" });
   });
 
   it("decline records the declined status", async () => {
     const h = harness();
-    const { quote, rawToken } = await sentQuote(h);
+    const { quote, rawToken, received } = await sentQuote(h);
     const { decide } = publicPair(h, new FixedClock());
     const result = await decide.run(ORG, rawToken, "decline");
     expect(result).toMatchObject({ status: "declined", canDecide: false });
@@ -406,6 +430,17 @@ describe("public quote decision (task 6.5)", () => {
       status: "declined",
       decision: "decline",
     });
+    const thread = await h.getThread.run(ORG, received.conversationId);
+    expect(thread?.quote).toMatchObject({
+      quoteVersionId: quote?.id,
+      status: "declined",
+      decision: "decline",
+    });
+    expect(
+      (await h.listInbox.run(ORG)).items.find(
+        (item) => item.conversationId === received.conversationId,
+      ),
+    ).toMatchObject({ quoteStatus: "declined" });
   });
 
   it("replaying the same decision is idempotent: no duplicate rows", async () => {

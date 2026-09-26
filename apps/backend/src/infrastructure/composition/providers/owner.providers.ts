@@ -71,11 +71,14 @@ export const ownerProviders: Provider[] = [
       conversations: ConversationRepository,
       messages: MessageRepository,
       revisions: ProcessingRevisionRepository,
-    ): ListInbox => new ListInbox({ conversations, messages, revisions }),
+      quotes: QuoteVersionRepository,
+    ): ListInbox =>
+      new ListInbox({ conversations, messages, revisions, quotes }),
     inject: [
       CONVERSATION_REPOSITORY,
       MESSAGE_REPOSITORY,
       PROCESSING_REVISION_REPOSITORY,
+      QUOTE_VERSION_REPOSITORY,
     ],
   },
   {

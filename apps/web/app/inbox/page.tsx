@@ -160,6 +160,21 @@ function InboxRow({ item }: { item: InboxItem }) {
             <span style={{ color: "#b00020", fontWeight: 600 }}>Urgent</span>
           ) : null}
           {item.lane ? <span>{item.lane}</span> : null}
+          {item.quoteStatus ? (
+            <span
+              style={{
+                fontWeight: 600,
+                color:
+                  item.quoteStatus === "accepted"
+                    ? "#2e7d32"
+                    : item.quoteStatus === "declined"
+                      ? "#b00020"
+                      : "#1a1a1a",
+              }}
+            >
+              Quote {item.quoteStatus}
+            </span>
+          ) : null}
           <span>{item.processing}</span>
         </div>
       </a>

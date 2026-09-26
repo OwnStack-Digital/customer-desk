@@ -115,6 +115,26 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
     return rows[0] ? this.toQuote(rows[0]) : undefined;
   }
 
+  async findLatestVisibleByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<QuoteVersion | undefined> {
+    return newestOf(await this.listVisible(organizationId, conversationId));
+  }
+
+  async findLatestVisiblePerConversation(
+    organizationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    const latest = new Map<string, QuoteVersion>();
+    for (const quote of await this.listVisible(organizationId)) {
+      const current = latest.get(quote.conversationId);
+      if (!current || isNewer(quote, current)) {
+        latest.set(quote.conversationId, quote);
+      }
+    }
+    return [...latest.values()];
+  }
+
   async findLatestOpenByConversation(
     organizationId: string,
     conversationId: string,
@@ -323,6 +343,41 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
     return rows.length > 0;
   }
 
+  /** Non-superseded versions. A conversation filter is optional so the
+   * inbox can load every conversation in one query. */
+  private async listVisible(
+    organizationId: string,
+    conversationId?: string,
+  ): Promise<QuoteVersion[]> {
+    const rows =
+      this.client.dialect === "sqlite"
+        ? await this.sqlite()
+            .select()
+            .from(sqliteQuoteVersions)
+            .where(
+              and(
+                eq(sqliteQuoteVersions.organizationId, organizationId),
+                ne(sqliteQuoteVersions.status, "superseded"),
+                ...(conversationId
+                  ? [eq(sqliteQuoteVersions.conversationId, conversationId)]
+                  : []),
+              ),
+            )
+        : await this.postgres()
+            .select()
+            .from(pgQuoteVersions)
+            .where(
+              and(
+                eq(pgQuoteVersions.organizationId, organizationId),
+                ne(pgQuoteVersions.status, "superseded"),
+                ...(conversationId
+                  ? [eq(pgQuoteVersions.conversationId, conversationId)]
+                  : []),
+              ),
+            );
+    return rows.map((row) => this.toQuote(row));
+  }
+
   private toQuote(row: PgRow | SqliteRow): QuoteVersion {
     return {
       id: row.id,
@@ -385,7 +440,7 @@ function parseStrings(
 }
 
 /** Newest first: same ordering the draft store uses for "latest". */
-function newestOf(quotes: QuoteVersion[]): QuoteVersion | undefined {
+function newestOf(quotes: readonly QuoteVersion[]): QuoteVersion | undefined {
   return [...quotes]
     .sort(
       (left, right) =>
@@ -393,4 +448,11 @@ function newestOf(quotes: QuoteVersion[]): QuoteVersion | undefined {
         left.id.localeCompare(right.id),
     )
     .at(-1);
+}
+
+function isNewer(candidate: QuoteVersion, current: QuoteVersion): boolean {
+  return (
+    candidate.createdAt > current.createdAt ||
+    (candidate.createdAt === current.createdAt && candidate.id > current.id)
+  );
 }

@@ -454,7 +454,13 @@ describe("demonstrator golden path (gate items 2-7)", () => {
 
     // And only then the quote state changed.
     const afterConfirm = await threadOf(cookie, quote.conversationId);
-    // The decided version no longer appears as the open quote.
+    // The decided version no longer appears as the open quote, but the
+    // owner thread still shows the recorded decision.
     expect(afterConfirm.openQuote).toBeUndefined();
+    expect(afterConfirm.quote).toMatchObject({
+      quoteVersionId,
+      status: "accepted",
+      decision: "accept",
+    });
   });
 });
