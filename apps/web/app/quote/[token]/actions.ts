@@ -36,6 +36,25 @@ export async function declineQuote(formData: FormData): Promise<void> {
   await decide(String(formData.get("token") ?? ""), "decline");
 }
 
+/** Sends a customer message on a still-visible quote link. */
+export async function sendCustomerMessage(formData: FormData): Promise<void> {
+  const token = String(formData.get("token") ?? "");
+  const text = String(formData.get("text") ?? "");
+  try {
+    await bosApi(`/public/quotes/${token}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch (error) {
+    if (error instanceof BosApiError && error.status === 404) {
+      redirect(`/quote/${token}`);
+    }
+    redirect(`/quote/${token}?error=${encodeURIComponent(messageOf(error))}`);
+  }
+  redirect(`/quote/${token}`);
+}
+
 function messageOf(error: unknown): string {
   if (error instanceof BosApiError) {
     return error.message;

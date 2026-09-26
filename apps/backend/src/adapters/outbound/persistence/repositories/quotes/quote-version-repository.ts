@@ -115,6 +115,17 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
     return rows[0] ? this.toQuote(rows[0]) : undefined;
   }
 
+  async listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    return [...(await this.listVisible(organizationId, conversationId))].sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    );
+  }
+
   async findLatestVisibleByConversation(
     organizationId: string,
     conversationId: string,
@@ -305,6 +316,39 @@ export class DrizzleQuoteVersionRepository implements QuoteVersionRepository {
               ),
             );
     return rows.map((row) => this.toQuote(row));
+  }
+
+  async supersedePrepared(
+    organizationId: string,
+    quoteVersionId: string,
+    updatedAt: string,
+  ): Promise<boolean> {
+    if (this.client.dialect === "sqlite") {
+      const rows = await this.sqlite()
+        .update(sqliteQuoteVersions)
+        .set({ status: "superseded", updatedAt })
+        .where(
+          and(
+            eq(sqliteQuoteVersions.organizationId, organizationId),
+            eq(sqliteQuoteVersions.id, quoteVersionId),
+            eq(sqliteQuoteVersions.status, "prepared"),
+          ),
+        )
+        .returning({ id: sqliteQuoteVersions.id });
+      return rows.length > 0;
+    }
+    const rows = await this.postgres()
+      .update(pgQuoteVersions)
+      .set({ status: "superseded", updatedAt })
+      .where(
+        and(
+          eq(pgQuoteVersions.organizationId, organizationId),
+          eq(pgQuoteVersions.id, quoteVersionId),
+          eq(pgQuoteVersions.status, "prepared"),
+        ),
+      )
+      .returning({ id: pgQuoteVersions.id });
+    return rows.length > 0;
   }
 
   async decide(

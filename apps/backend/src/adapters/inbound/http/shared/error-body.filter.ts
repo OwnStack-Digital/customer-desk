@@ -5,6 +5,7 @@ import { AuthError } from "../../../../core/domain/auth";
 import {
   ConflictError,
   StaleRevisionError,
+  ValidationError,
 } from "../../../../core/domain/errors";
 import { InboundValidationError } from "../../../../core/domain/messaging";
 import { createLogger } from "../../../../infrastructure/logger";
@@ -32,7 +33,10 @@ export class ErrorBodyFilter implements ExceptionFilter {
         .json({ error: { code: "unauthorized", message: exception.message } });
       return;
     }
-    if (exception instanceof InboundValidationError) {
+    if (
+      exception instanceof InboundValidationError ||
+      exception instanceof ValidationError
+    ) {
       response.status(HttpStatus.UNPROCESSABLE_ENTITY).json({
         error: { code: "validation", message: exception.message },
       });

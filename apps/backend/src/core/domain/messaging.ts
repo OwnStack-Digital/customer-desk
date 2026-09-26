@@ -4,7 +4,11 @@
  * `InboundEmail` DTO arrives already parsed; MIME handling is out of scope.
  */
 
+import { ValidationError } from "./errors";
 import type { OwnerVisibleQuoteStatus, QuoteDecision } from "./quote";
+
+/** Operator and customer compose limit. Long enough for a real email. */
+export const MESSAGE_TEXT_MAX_LENGTH = 8_000;
 
 export type MessageDirection = "inbound" | "outbound";
 
@@ -183,11 +187,34 @@ export interface Thread {
     readonly totalMinor: number;
     readonly currency: string;
   };
-  /** Newest quote the owner should still see, including a recorded
-   * accept/decline. Absent only when the conversation has no quote, or
-   * every version was superseded. */
+  /** Newest non-superseded quote. A replacement hides nothing by itself:
+   * earlier accepted and declined versions stay in `quotes`. */
   readonly quote?: ThreadQuote;
+  /** Owner-visible quote versions, oldest first. Includes a declined
+   * quote after a newer one is prepared. Superseded versions are omitted. */
+  readonly quotes: readonly ThreadQuote[];
+  /** Received mail, sent mail, and actions, oldest first. */
+  readonly timeline: readonly ThreadTimelineEntry[];
 }
+
+/** One row of the conversation timeline. */
+export type ThreadTimelineEntry =
+  | {
+      readonly kind: "received" | "sent";
+      readonly id: string;
+      readonly at: string;
+      readonly from: string;
+      readonly subject?: string;
+      readonly text?: string;
+    }
+  | {
+      readonly kind: "event";
+      readonly id: string;
+      readonly at: string;
+      readonly actor: string;
+      readonly action: string;
+      readonly label: string;
+    };
 
 /** Owner-visible quote on a thread. Amounts come from the immutable snapshot. */
 export interface ThreadQuote {
@@ -197,6 +224,13 @@ export interface ThreadQuote {
   readonly currency: string;
   readonly decision?: QuoteDecision;
   readonly decidedAt?: string;
+  /** Immutable snapshot lines, so a declined quote can be revised from them. */
+  readonly lines: readonly {
+    readonly ruleId: string;
+    readonly name: string;
+    readonly quantity?: number;
+    readonly amountMinor: number;
+  }[];
 }
 
 /** Malformed DTO or wrong mailbox: the shared 422 "validation" failure. */
@@ -207,4 +241,32 @@ export class InboundValidationError extends Error {
     super(message);
     this.name = "InboundValidationError";
   }
+}
+
+/** Trimmed compose text, or a 422 when it is empty or too long. */
+export function messageTextOf(value: string): string {
+  const text = value.trim();
+  if (text === "") {
+    throw new ValidationError("A message needs some text.");
+  }
+  if (text.length > MESSAGE_TEXT_MAX_LENGTH) {
+    throw new ValidationError(
+      `A message can be at most ${MESSAGE_TEXT_MAX_LENGTH} characters.`,
+    );
+  }
+  return text;
+}
+
+/** `Re: <subject>` for a follow-up, without stacking another Re:. */
+export function replySubject(subject: string | null | undefined): string {
+  const trimmed = subject?.trim();
+  if (!trimmed) {
+    return "Re: your message";
+  }
+  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+export function mailDomain(address: string): string {
+  const at = address.indexOf("@");
+  return at === -1 ? "localhost" : address.slice(at + 1);
 }

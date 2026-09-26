@@ -25,6 +25,12 @@ export interface DraftRevisionRepository {
     conversationId: string,
   ): Promise<DraftRevision | undefined>;
 
+  /** Every draft revision of a conversation, oldest first. */
+  listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly DraftRevision[]>;
+
   /** Marks one revision `superseded` (an edit or a newer draft replaced it). */
   supersede(organizationId: string, revisionId: string): Promise<void>;
 

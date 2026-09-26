@@ -34,6 +34,15 @@ export interface QuoteVersionRepository {
   ): Promise<QuoteVersion | undefined>;
 
   /**
+   * Every version of a conversation, oldest first. The thread lists
+   * declined and accepted versions even after a replacement is prepared.
+   */
+  listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]>;
+
+  /**
    * Newest non-superseded version of a conversation. Includes a recorded
    * `accepted` / `declined` so the owner portal can show the decision
    * after the quote leaves the open set.
@@ -95,6 +104,17 @@ export interface QuoteVersionRepository {
    * `decided_at`. Returns false when the version was not `sent` (already
    * decided, superseded, or never sent).
    */
+  /**
+   * Conditional `prepared → superseded`. Used when the operator discards
+   * the draft of an unsent quote, so that version stops looking open.
+   * Returns false when it was not `prepared`.
+   */
+  supersedePrepared(
+    organizationId: string,
+    quoteVersionId: string,
+    updatedAt: string,
+  ): Promise<boolean>;
+
   decide(
     organizationId: string,
     quoteVersionId: string,

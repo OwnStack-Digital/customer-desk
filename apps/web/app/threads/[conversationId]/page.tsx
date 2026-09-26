@@ -1,18 +1,41 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BosApiError, bosApi, type Thread } from "../../../lib/bos-api";
+import {
+  BosApiError,
+  bosApi,
+  type PriceCatalog,
+  type Thread,
+  type ThreadTimelineEntry,
+} from "../../../lib/bos-api";
 import {
   approveDraft,
   confirmQuoteDecision,
   discardDraft,
   editDraft,
+  retryProcessing,
+  reviseDeclinedQuote,
   sendDraft,
+  sendOperatorMessage,
   takeOverConversation,
 } from "./actions";
 
 export const metadata = { title: "Conversation — BOS" };
 
 type ThreadLoad = Thread | "login" | "not-found" | "error";
+
+async function loadCatalog(): Promise<PriceCatalog | null> {
+  const session = (await cookies()).get("bos_session")?.value;
+  if (!session) {
+    return null;
+  }
+  try {
+    return await bosApi<PriceCatalog>("/price-list", {
+      headers: { cookie: `bos_session=${session}` },
+    });
+  } catch {
+    return null;
+  }
+}
 
 async function loadThread(conversationId: string): Promise<ThreadLoad> {
   const session = (await cookies()).get("bos_session")?.value;
@@ -77,6 +100,154 @@ const dangerButtonStyle = {
   color: "#b00020",
   borderColor: "#b00020",
 } as const;
+
+function TimelineRow({ entry }: { entry: ThreadTimelineEntry }) {
+  if (entry.kind === "event") {
+    return (
+      <li
+        style={{
+          alignSelf: "center",
+          maxWidth: "100%",
+          padding: "0.35rem 0.75rem",
+          borderRadius: "999px",
+          background: "#fff8e8",
+          border: "1px solid #e6d3a1",
+          color: "#6b5420",
+          fontSize: "0.8rem",
+          textAlign: "center",
+        }}
+      >
+        <strong>Event</strong> · {entry.label}
+        {entry.actor ? ` · ${entry.actor}` : ""} · {formatTime(entry.at)}
+      </li>
+    );
+  }
+  const received = entry.kind === "received";
+  return (
+    <li
+      style={{
+        alignSelf: received ? "flex-start" : "flex-end",
+        width: "min(100%, 34rem)",
+        border: `1px solid ${received ? "#cfe3d4" : "#d7d7d7"}`,
+        borderRadius: "8px",
+        padding: "0.75rem",
+        background: received ? "#f3faf4" : "#f5f5f5",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "0.5rem",
+          fontSize: "0.8rem",
+          color: "#555",
+        }}
+      >
+        <span>
+          <strong>{received ? "Received" : "Sent"}</strong> · {entry.from}
+        </span>
+        <span style={{ whiteSpace: "nowrap" }}>{formatTime(entry.at)}</span>
+      </div>
+      {entry.subject ? (
+        <div style={{ margin: "0.5rem 0 0.25rem", fontWeight: 600 }}>
+          {entry.subject}
+        </div>
+      ) : null}
+      <p
+        style={{
+          margin: "0.35rem 0 0",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {entry.text || "(no text body)"}
+      </p>
+    </li>
+  );
+}
+
+function ReviseQuote({
+  conversationId,
+  catalog,
+  previous,
+}: {
+  conversationId: string;
+  catalog: PriceCatalog;
+  previous: Thread["quote"];
+}) {
+  return (
+    <section
+      style={{
+        margin: "0.75rem 0 0",
+        padding: "0.75rem",
+        border: "1px solid #1a1a1a",
+        borderRadius: "8px",
+        background: "#fff",
+        fontSize: "0.85rem",
+      }}
+    >
+      <h2 style={{ fontSize: "0.95rem", margin: "0 0 0.35rem" }}>
+        Update quote
+      </h2>
+      <p style={{ margin: "0 0 0.75rem", color: "#555" }}>
+        Prepares a new draft from the price list. The declined quote stays
+        declined. Approve and send the draft to issue a new link. Prices cannot
+        be typed in — only the items and quantities.
+      </p>
+      <form action={reviseDeclinedQuote}>
+        <input type="hidden" name="conversationId" value={conversationId} />
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {catalog.rules.map((rule) => {
+            const prior = previous?.lines.find(
+              (line) => line.ruleId === rule.id,
+            );
+            return (
+              <li
+                key={rule.id}
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  margin: "0.4rem 0",
+                }}
+              >
+                <label style={{ display: "flex", gap: "0.35rem" }}>
+                  <input
+                    type="checkbox"
+                    name={`include_${rule.id}`}
+                    defaultChecked={prior !== undefined}
+                  />
+                  {rule.label}
+                  {rule.unit ? ` (${rule.unit}s)` : ""}
+                </label>
+                {rule.kind === "per_unit" ? (
+                  <input
+                    type="number"
+                    name={`quantity_${rule.id}`}
+                    min={1}
+                    step={1}
+                    defaultValue={prior?.quantity ?? 1}
+                    aria-label={`${rule.label} quantity`}
+                    style={{
+                      width: "4.5rem",
+                      padding: "0.25rem",
+                      borderRadius: "6px",
+                      border: "1px solid #e2e2e2",
+                    }}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+        <button type="submit" style={{ ...buttonStyle, marginTop: "0.75rem" }}>
+          Prepare updated quote
+        </button>
+      </form>
+    </section>
+  );
+}
 
 function QuoteReply({
   conversationId,
@@ -170,6 +341,13 @@ export default async function ThreadPage({
   const { conversationId } = await params;
   const { error: actionError } = await searchParams;
   const result = await loadThread(conversationId);
+  const declinedThread =
+    typeof result !== "string" &&
+    result.quote?.status === "declined" &&
+    result.draft?.status !== "approved"
+      ? result
+      : null;
+  const catalog = declinedThread ? await loadCatalog() : null;
   if (result === "login") {
     redirect("/login");
   }
@@ -266,6 +444,24 @@ export default async function ThreadPage({
                   {result.processing.summary}
                 </span>
               ) : null}
+              {result.processing.status === "failed" &&
+              result.messages.length > 0 ? (
+                <form action={retryProcessing}>
+                  <input
+                    type="hidden"
+                    name="conversationId"
+                    value={conversationId}
+                  />
+                  <input
+                    type="hidden"
+                    name="messageId"
+                    value={result.messages[result.messages.length - 1]?.id}
+                  />
+                  <button type="submit" style={secondaryButtonStyle}>
+                    Retry processing
+                  </button>
+                </form>
+              ) : null}
             </div>
           ) : null}
           {result.serviceNote ? (
@@ -306,42 +502,65 @@ export default async function ThreadPage({
               </p>
             </section>
           ) : null}
-          {result.quote ? (
+          {(result.quotes ?? []).map((quote, index, quotes) => (
             <section
+              key={quote.quoteVersionId}
               style={{
                 margin: "0.75rem 0 0",
                 padding: "0.5rem 0.75rem",
                 border: `1px solid ${
-                  result.quote.status === "accepted"
+                  quote.status === "accepted"
                     ? "#2e7d32"
-                    : result.quote.status === "declined"
+                    : quote.status === "declined"
                       ? "#b00020"
                       : "#1a1a1a"
                 }`,
                 borderRadius: "8px",
                 background:
-                  result.quote.status === "accepted"
+                  quote.status === "accepted"
                     ? "#f1f8f1"
-                    : result.quote.status === "declined"
+                    : quote.status === "declined"
                       ? "#fff5f6"
                       : "#f7f7f7",
                 fontSize: "0.85rem",
               }}
             >
               <h2 style={{ fontSize: "0.9rem", margin: "0 0 0.35rem" }}>
-                Quote: {QUOTE_STATUS_LABEL[result.quote.status]}
+                {quotes.length > 1 && index < quotes.length - 1
+                  ? "Earlier quote"
+                  : "Quote"}
+                : {QUOTE_STATUS_LABEL[quote.status]}
               </h2>
               <p style={{ margin: 0 }}>
-                Total:{" "}
-                {formatMinor(result.quote.currency, result.quote.totalMinor)}
+                Total: {formatMinor(quote.currency, quote.totalMinor)}
               </p>
-              {result.quote.decidedAt ? (
+              {quote.decidedAt ? (
                 <p style={{ margin: "0.25rem 0 0", color: "#555" }}>
-                  Decided {formatTime(result.quote.decidedAt)}
-                  {result.quote.decision ? ` · ${result.quote.decision}` : ""}
+                  Decided {formatTime(quote.decidedAt)}
+                  {quote.decision ? ` · ${quote.decision}` : ""}
                 </p>
               ) : null}
+              {quote.lines.length > 0 ? (
+                <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
+                  {quote.lines.map((line) => (
+                    <li
+                      key={`${quote.quoteVersionId}-${line.ruleId}-${line.quantity ?? 1}`}
+                    >
+                      {line.name}
+                      {line.quantity ? ` × ${line.quantity}` : ""}:{" "}
+                      {formatMinor(quote.currency, line.amountMinor)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </section>
+          ))}
+          {declinedThread && catalog ? (
+            <ReviseQuote
+              conversationId={conversationId}
+              catalog={catalog}
+              previous={declinedThread.quote}
+            />
           ) : null}
           {result.quoteReply ? (
             <QuoteReply
@@ -483,7 +702,19 @@ export default async function ThreadPage({
               </div>
             </section>
           ) : null}
-          {result.messages.length === 0 ? (
+          <h2 style={{ fontSize: "1rem", margin: "1.25rem 0 0" }}>
+            Conversation
+          </h2>
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              color: "#777",
+              fontSize: "0.75rem",
+            }}
+          >
+            Received, sent, and actions stay in order and look different.
+          </p>
+          {(result.timeline ?? []).length === 0 ? (
             <p style={{ color: "#555" }}>This conversation has no messages.</p>
           ) : (
             <ul
@@ -493,55 +724,55 @@ export default async function ThreadPage({
                 margin: "1rem 0 0",
                 display: "flex",
                 flexDirection: "column",
-                gap: "1rem",
+                gap: "0.75rem",
               }}
             >
-              {result.messages.map((message) => (
-                <li
-                  key={message.id}
-                  style={{
-                    border: "1px solid #e2e2e2",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                    background:
-                      message.direction === "inbound" ? "#fff" : "#f5f5f5",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "0.5rem",
-                      fontSize: "0.8rem",
-                      color: "#555",
-                    }}
-                  >
-                    <span>{message.from}</span>
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      {message.direction} · {formatTime(message.at)}
-                    </span>
-                  </div>
-                  {message.subject ? (
-                    <div
-                      style={{ margin: "0.5rem 0 0.25rem", fontWeight: 600 }}
-                    >
-                      {message.subject}
-                    </div>
-                  ) : null}
-                  {/* Plain text only; HTML bodies are never rendered. */}
-                  <p
-                    style={{
-                      margin: 0,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {message.text || "(no text body)"}
-                  </p>
-                </li>
+              {result.timeline.map((entry) => (
+                <TimelineRow key={`${entry.kind}-${entry.id}`} entry={entry} />
               ))}
             </ul>
           )}
+          <form action={sendOperatorMessage} style={{ marginTop: "1rem" }}>
+            <input type="hidden" name="conversationId" value={conversationId} />
+            <label
+              htmlFor="operator-message"
+              style={{ display: "block", fontSize: "0.9rem", fontWeight: 600 }}
+            >
+              Send a message
+            </label>
+            <p
+              style={{
+                margin: "0.25rem 0 0.5rem",
+                color: "#555",
+                fontSize: "0.8rem",
+              }}
+            >
+              Queues an email to the customer at any stage. It does not change
+              the quote or replace a draft.
+            </p>
+            <textarea
+              id="operator-message"
+              name="text"
+              required
+              rows={4}
+              placeholder="Write to the customer…"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "0.5rem",
+                borderRadius: "8px",
+                border: "1px solid #e2e2e2",
+                fontFamily: "inherit",
+                fontSize: "0.9rem",
+              }}
+            />
+            <button
+              type="submit"
+              style={{ ...buttonStyle, marginTop: "0.5rem" }}
+            >
+              Send message
+            </button>
+          </form>
         </>
       )}
     </main>

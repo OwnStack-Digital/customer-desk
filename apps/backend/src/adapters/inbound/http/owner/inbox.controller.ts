@@ -9,6 +9,11 @@ import {
 } from "@nestjs/common";
 import type { InboxFilter } from "../../../../core/domain/messaging";
 import {
+  GET_PRICE_CATALOG,
+  type GetPriceCatalog,
+  type PriceCatalog,
+} from "../../../../core/use-cases/get-price-catalog";
+import {
   GET_THREAD,
   type GetThread,
 } from "../../../../core/use-cases/get-thread";
@@ -32,16 +37,25 @@ import { SessionGuard } from "../shared/session.guard";
 export class InboxController {
   private readonly listInbox: ListInbox;
   private readonly threads: GetThread;
+  private readonly catalog: GetPriceCatalog;
   private readonly config: ValidatedConfig;
 
   constructor(
     @Inject(LIST_INBOX) listInbox: ListInbox,
     @Inject(GET_THREAD) getThread: GetThread,
+    @Inject(GET_PRICE_CATALOG) catalog: GetPriceCatalog,
     @Inject(CONFIG) config: ValidatedConfig,
   ) {
     this.listInbox = listInbox;
     this.threads = getThread;
+    this.catalog = catalog;
     this.config = config;
+  }
+
+  @Get("price-list")
+  @UseGuards(SessionGuard)
+  getPriceList(): PriceCatalog {
+    return this.catalog.run();
   }
 
   @Get("inbox")

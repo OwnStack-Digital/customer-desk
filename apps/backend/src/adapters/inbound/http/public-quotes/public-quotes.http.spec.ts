@@ -150,7 +150,7 @@ describe("public quote routes over HTTP (task 6.5)", () => {
         `/public/quotes/${token}`,
       );
       expect(shown.status).toBe(200);
-      expect(shown.body).toEqual({
+      expect(shown.body).toMatchObject({
         businessName: "Harbour & Pine Cleaning",
         status: "sent",
         currency: "AUD",
@@ -355,10 +355,50 @@ describe("public quote routes over HTTP (task 6.5)", () => {
       `/public/quotes/${first}`,
     );
     expect(get.status).toBe(404);
+    const message = await request(app.getHttpServer())
+      .post(`/public/quotes/${first}/messages`)
+      .send({ text: "Still there?" });
+    expect(message.status).toBe(404);
     const post = await request(app.getHttpServer())
       .post(`/public/quotes/${first}/decision`)
       .send({ decision: "accept" });
     expect(post.status).toBe(404);
+  });
+
+  it("shows the thread and accepts a customer message after the quote is decided", async () => {
+    const { token, conversationId } = await sentQuote("src-pq-thread");
+    const decline = await request(app.getHttpServer())
+      .post(`/public/quotes/${token}/decision`)
+      .send({ decision: "decline" });
+    expect(decline.status).toBe(200);
+
+    const sent = await request(app.getHttpServer())
+      .post(`/public/quotes/${token}/messages`)
+      .send({ text: "Please send a revised quote." });
+    expect(sent.status).toBe(201);
+
+    const shown = await request(app.getHttpServer()).get(
+      `/public/quotes/${token}`,
+    );
+    expect(shown.status).toBe(200);
+    expect(shown.body.status).toBe("declined");
+    expect(shown.body.messages.at(-1)).toMatchObject({
+      direction: "inbound",
+      from: "You",
+      text: "Please send a revised quote.",
+    });
+    expect(JSON.stringify(shown.body)).not.toContain(token);
+
+    const login = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({ email: OWNER_EMAIL, password: OWNER_PASSWORD });
+    const cookie = login.headers["set-cookie"]?.[0]?.split(";")[0] ?? "";
+    const thread = await request(app.getHttpServer())
+      .get(`/threads/${conversationId}`)
+      .set("Cookie", cookie);
+    expect(thread.body.messages.at(-1).text).toBe(
+      "Please send a revised quote.",
+    );
   });
 });
 

@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BosApiError, bosApi } from "../../../lib/bos-api";
+import { BosApiError, bosApi, type PriceCatalog } from "../../../lib/bos-api";
 
 /**
  * Plain server actions for the thread page (PLAN.md task 5.6). Each action
@@ -105,6 +105,52 @@ export async function sendDraft(formData: FormData): Promise<void> {
   back(conversationId);
 }
 
+/** Prepares a new quote draft from price-list lines after a decline. */
+export async function reviseDeclinedQuote(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const session = await sessionCookie();
+  if (!session) {
+    redirect("/login");
+  }
+  let catalog: PriceCatalog;
+  try {
+    catalog = await bosApi<PriceCatalog>("/price-list", {
+      headers: { cookie: `bos_session=${session}` },
+    });
+  } catch (error) {
+    if (error instanceof BosApiError && error.status === 401) {
+      redirect("/login");
+    }
+    const message =
+      error instanceof Error ? error.message : "The price list is unavailable.";
+    redirect(`/threads/${conversationId}?error=${encodeURIComponent(message)}`);
+  }
+  const lines = catalog.rules.flatMap((rule) => {
+    if (formData.get(`include_${rule.id}`) !== "on") {
+      return [];
+    }
+    const quantityRaw = String(
+      formData.get(`quantity_${rule.id}`) ?? "",
+    ).trim();
+    if (rule.kind === "per_unit") {
+      return [
+        {
+          ruleId: rule.id,
+          label: rule.label,
+          quantity: Number(quantityRaw),
+        },
+      ];
+    }
+    return [{ ruleId: rule.id, label: rule.label }];
+  });
+  await callApi(conversationId, `/threads/${conversationId}/quote-revision`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ lines }),
+  });
+  back(conversationId);
+}
+
 /** Records the customer's emailed accept/decline on the open quote. */
 export async function confirmQuoteDecision(formData: FormData): Promise<void> {
   const conversationId = String(formData.get("conversationId") ?? "");
@@ -114,6 +160,28 @@ export async function confirmQuoteDecision(formData: FormData): Promise<void> {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ quoteVersionId, decision }),
+  });
+  back(conversationId);
+}
+
+/** Queues an operator email on this conversation, with or without a draft. */
+export async function sendOperatorMessage(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const text = String(formData.get("text") ?? "");
+  await callApi(conversationId, `/threads/${conversationId}/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  back(conversationId);
+}
+
+/** Re-runs processing for a message whose latest revision failed. */
+export async function retryProcessing(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const messageId = String(formData.get("messageId") ?? "");
+  await callApi(conversationId, `/messages/${messageId}/retry-processing`, {
+    method: "POST",
   });
   back(conversationId);
 }

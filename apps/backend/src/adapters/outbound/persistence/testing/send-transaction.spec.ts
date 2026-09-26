@@ -99,6 +99,10 @@ class FailingAuditRepository implements AuditEventRepository {
   insertEvent(_event: AuditEvent): Promise<void> {
     return Promise.reject(new Error("audit sink unavailable"));
   }
+
+  listByEntityIds(): Promise<readonly AuditEvent[]> {
+    return Promise.resolve([]);
+  }
 }
 
 /**

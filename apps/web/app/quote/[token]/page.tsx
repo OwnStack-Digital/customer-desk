@@ -1,5 +1,5 @@
 import { BosApiError, bosApi, type PublicQuote } from "../../../lib/bos-api";
-import { acceptQuote, declineQuote } from "./actions";
+import { acceptQuote, declineQuote, sendCustomerMessage } from "./actions";
 
 export const metadata = { title: "Your quote — BOS" };
 
@@ -24,7 +24,7 @@ function formatDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleDateString("en-AU", { dateStyle: "medium" });
+    : date.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" });
 }
 
 const buttonStyle = {
@@ -62,7 +62,7 @@ export default async function QuotePage({
 
   return (
     <main
-      style={{ maxWidth: "480px", margin: "0 auto", padding: "1.5rem 1rem" }}
+      style={{ maxWidth: "640px", margin: "0 auto", padding: "1.5rem 1rem" }}
     >
       {result === "not-found" ? (
         <section>
@@ -234,9 +234,115 @@ export default async function QuotePage({
                 fontSize: "0.85rem",
               }}
             >
-              This quote can no longer be decided from this link.
+              This quote can no longer be decided from this link. You can still
+              send a message.
             </p>
           )}
+
+          <h2 style={{ fontSize: "1rem", margin: "1.5rem 0 0.5rem" }}>
+            Conversation ({result.messages.length})
+          </h2>
+          {result.messages.length === 0 ? (
+            <p style={{ color: "#555" }}>No messages yet.</p>
+          ) : (
+            <ul
+              style={{
+                ...listStyle,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              {result.messages.map((message) => {
+                const received = message.direction === "inbound";
+                return (
+                  <li
+                    key={message.id}
+                    style={{
+                      alignSelf: received ? "flex-end" : "flex-start",
+                      width: "min(100%, 34rem)",
+                      border: `1px solid ${received ? "#cfe3d4" : "#d7d7d7"}`,
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      background: received ? "#f3faf4" : "#f5f5f5",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        fontSize: "0.8rem",
+                        color: "#555",
+                      }}
+                    >
+                      <span>
+                        <strong>{received ? "Sent by you" : "Received"}</strong>{" "}
+                        · {message.from}
+                      </span>
+                      <span style={{ whiteSpace: "nowrap" }}>
+                        {formatDate(message.at)}
+                      </span>
+                    </div>
+                    <p
+                      style={{
+                        margin: "0.5rem 0 0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {message.text || "(no text body)"}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <form action={sendCustomerMessage} style={{ marginTop: "1rem" }}>
+            <input type="hidden" name="token" value={token} />
+            <label
+              htmlFor="customer-message"
+              style={{
+                display: "block",
+                fontSize: "0.9rem",
+                fontWeight: 600,
+              }}
+            >
+              Send a message
+            </label>
+            <p
+              style={{
+                margin: "0.25rem 0 0.5rem",
+                color: "#555",
+                fontSize: "0.8rem",
+              }}
+            >
+              Available whether you accept, decline, or are still deciding.
+            </p>
+            <textarea
+              id="customer-message"
+              name="text"
+              required
+              rows={4}
+              placeholder="Write to the business…"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "0.5rem",
+                borderRadius: "8px",
+                border: "1px solid #e2e2e2",
+                fontFamily: "inherit",
+                fontSize: "0.9rem",
+              }}
+            />
+            <button
+              type="submit"
+              style={{ ...buttonStyle, marginTop: "0.5rem" }}
+            >
+              Send message
+            </button>
+          </form>
         </section>
       )}
     </main>

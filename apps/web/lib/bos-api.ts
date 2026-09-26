@@ -227,14 +227,56 @@ export type Thread = {
     currency: string;
   };
   /** Newest quote still visible to the owner, including accept/decline. */
-  quote?: {
-    quoteVersionId: string;
-    status: "prepared" | "sent" | "accepted" | "declined";
-    totalMinor: number;
-    currency: string;
-    decision?: "accept" | "decline";
-    decidedAt?: string;
-  };
+  quote?: ThreadQuote;
+  /** Every non-superseded quote, oldest first, including a declined one. */
+  quotes: ThreadQuote[];
+  /** Received mail, sent mail, and actions, oldest first. */
+  timeline: ThreadTimelineEntry[];
+};
+
+export type ThreadTimelineEntry =
+  | {
+      kind: "received" | "sent";
+      id: string;
+      at: string;
+      from: string;
+      subject?: string;
+      text?: string;
+    }
+  | {
+      kind: "event";
+      id: string;
+      at: string;
+      actor: string;
+      action: string;
+      label: string;
+    };
+
+export type ThreadQuote = {
+  quoteVersionId: string;
+  status: "prepared" | "sent" | "accepted" | "declined";
+  totalMinor: number;
+  currency: string;
+  decision?: "accept" | "decline";
+  decidedAt?: string;
+  lines: Array<{
+    ruleId: string;
+    name: string;
+    quantity?: number;
+    amountMinor: number;
+  }>;
+};
+
+/** Read-only catalog for preparing a replacement quote. */
+export type PriceCatalog = {
+  currency: string;
+  version: string;
+  rules: Array<{
+    id: string;
+    label: string;
+    kind: "fixed" | "per_unit";
+    unit?: string;
+  }>;
 };
 
 /** PublicQuote from docs/PLAN.md (GET /public/quotes/:token, slice 6). */
@@ -249,4 +291,12 @@ export type PublicQuote = {
   totalMinor: number;
   validUntil: string;
   canDecide: boolean;
+  /** Customer-visible conversation. The raw quote token is never included. */
+  messages: Array<{
+    id: string;
+    direction: "inbound" | "outbound";
+    at: string;
+    from: string;
+    text?: string;
+  }>;
 };

@@ -240,6 +240,19 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
     return Promise.resolve(newestQuote(open));
   }
 
+  listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly QuoteVersion[]> {
+    return Promise.resolve(
+      [...this.visible(organizationId, conversationId)].sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.id.localeCompare(right.id),
+      ),
+    );
+  }
+
   findLatestVisibleByConversation(
     organizationId: string,
     conversationId: string,
@@ -335,6 +348,19 @@ export class FakeQuoteVersions implements QuoteVersionRepository {
       }
     }
     return Promise.resolve(count);
+  }
+
+  supersedePrepared(
+    organizationId: string,
+    quoteVersionId: string,
+    updatedAt: string,
+  ): Promise<boolean> {
+    const row = this.row(organizationId, quoteVersionId);
+    if (row.status !== "prepared") {
+      return Promise.resolve(false);
+    }
+    Object.assign(row, { status: "superseded" as const, updatedAt });
+    return Promise.resolve(true);
   }
 
   decide(
@@ -541,11 +567,28 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
     return Promise.resolve(true);
   }
 
+  listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly DraftRevision[]> {
+    return Promise.resolve(
+      this.conversationRows(organizationId, conversationId),
+    );
+  }
+
   findLatestByConversation(
     organizationId: string,
     conversationId: string,
   ): Promise<DraftRevision | undefined> {
-    const rows = this.rows
+    const rows = this.conversationRows(organizationId, conversationId);
+    return Promise.resolve(rows.at(-1));
+  }
+
+  private conversationRows(
+    organizationId: string,
+    conversationId: string,
+  ): DraftRevision[] {
+    return this.rows
       .filter(
         (row) =>
           row.organizationId === organizationId &&
@@ -556,7 +599,6 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
           left.createdAt.localeCompare(right.createdAt) ||
           left.id.localeCompare(right.id),
       );
-    return Promise.resolve(rows.at(-1));
   }
 
   private row(organizationId: string, revisionId: string): DraftRevision {
@@ -751,6 +793,25 @@ export class FakeAuditEvents implements AuditEventRepository {
     this.rows.push(event);
     return Promise.resolve();
   }
+
+  listByEntityIds(
+    organizationId: string,
+    entityIds: readonly string[],
+  ): Promise<readonly AuditEvent[]> {
+    const ids = new Set(entityIds);
+    return Promise.resolve(
+      this.rows
+        .filter(
+          (row) =>
+            row.organizationId === organizationId && ids.has(row.entityId),
+        )
+        .sort(
+          (left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.id.localeCompare(right.id),
+        ),
+    );
+  }
 }
 
 /** UnitOfWork double: no transaction, the same fake repositories. */
@@ -824,6 +885,7 @@ export function harness() {
     revisions,
     drafts,
     quotes,
+    audit,
   });
   const unitOfWork = new FakeUnitOfWork({
     messages,
@@ -848,6 +910,7 @@ export function harness() {
   });
   const reviewDraft = new ReviewDraft({
     drafts,
+    quotes,
     audit,
     ids,
     clock,
@@ -864,6 +927,8 @@ export function harness() {
     tokenHasher,
     profile,
     clock,
+    conversations,
+    messages,
   });
   const recordQuoteDecision = new RecordQuoteDecision({
     quotes,

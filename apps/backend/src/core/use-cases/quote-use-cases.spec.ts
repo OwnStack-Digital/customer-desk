@@ -42,6 +42,8 @@ function publicPair(h: ReturnType<typeof harness>, clock: Clock) {
       tokenHasher: h.tokenHasher,
       profile: h.profile,
       clock,
+      conversations: h.conversations,
+      messages: h.messages,
     }),
     decide: new RecordQuoteDecision({
       quotes: h.quotes,
@@ -134,6 +136,15 @@ describe("quote lane processing (task 6.3)", () => {
       status: "prepared",
       totalMinor: 22_000,
       currency: "AUD",
+      lines: [
+        {
+          ruleId: "regular_clean",
+          name: "Regular clean",
+          quantity: 3,
+          amountMinor: 13_500,
+        },
+        { ruleId: "oven_clean", name: "Oven clean", amountMinor: 6500 },
+      ],
     });
   });
 
@@ -362,7 +373,7 @@ describe("public quote decision (task 6.5)", () => {
     const { quote, rawToken } = await sentQuote(h);
     const { get } = publicPair(h, new FixedClock());
     const shown = await get.run(ORG, rawToken);
-    expect(shown).toEqual({
+    expect(shown).toMatchObject({
       businessName: "Harbour & Pine Cleaning",
       status: "sent",
       currency: "AUD",
@@ -374,6 +385,13 @@ describe("public quote decision (task 6.5)", () => {
       validUntil: "2025-06-15T00:00:00.000Z",
       canDecide: true,
     });
+    expect(shown?.messages.map((message) => message.direction)).toEqual([
+      "inbound",
+      "outbound",
+    ]);
+    expect(shown?.messages[0]?.from).toBe("You");
+    expect(shown?.messages[1]?.from).toBe("Harbour & Pine Cleaning");
+    expect(shown?.messages[1]?.text).not.toContain(rawToken);
     // A scanner that only GETs leaves the quote `sent`.
     const stored = h.quotes.rows.find((row) => row.id === quote?.id);
     expect(stored).toMatchObject({
@@ -411,6 +429,7 @@ describe("public quote decision (task 6.5)", () => {
       currency: "AUD",
       decision: "accept",
       decidedAt: NOW,
+      lines: [{ ruleId: "oven_clean", name: "Oven clean", amountMinor: 6500 }],
     });
     const inbox = await h.listInbox.run(ORG);
     expect(

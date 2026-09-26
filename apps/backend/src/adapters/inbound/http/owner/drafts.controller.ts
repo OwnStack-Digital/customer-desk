@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import type { QuoteRequestLine } from "../../../../core/domain/pricing";
 import {
   CONFIRM_QUOTE_DECISION,
   type ConfirmQuoteDecision,
@@ -19,6 +20,16 @@ import {
   type ReviewDraftAction,
   type ReviewedDraft,
 } from "../../../../core/use-cases/review-draft";
+import {
+  REVISE_DECLINED_QUOTE,
+  type ReviseDeclinedQuote,
+  type ReviseDeclinedQuoteOutcome,
+} from "../../../../core/use-cases/revise-declined-quote";
+import {
+  SEND_OPERATOR_MESSAGE,
+  type SendOperatorMessage,
+  type SentOperatorMessage,
+} from "../../../../core/use-cases/send-operator-message";
 import {
   TAKE_OVER_CONVERSATION,
   type TakeOverConversation,
@@ -42,6 +53,14 @@ interface QuoteDecisionBody {
   decision?: unknown;
 }
 
+interface OperatorMessageBody {
+  text?: unknown;
+}
+
+interface ReviseQuoteBody {
+  lines?: unknown;
+}
+
 /**
  * Owner thread routes (PLAN.md slices 5 and 7):
  * `POST /threads/:conversationId/drafts/:revisionId` with
@@ -62,6 +81,8 @@ export class DraftsController {
   private readonly review: ReviewDraft;
   private readonly takeOverUseCase: TakeOverConversation;
   private readonly confirmQuoteDecision: ConfirmQuoteDecision;
+  private readonly sendOperatorMessage: SendOperatorMessage;
+  private readonly reviseDeclinedQuote: ReviseDeclinedQuote;
   private readonly config: ValidatedConfig;
 
   constructor(
@@ -69,11 +90,15 @@ export class DraftsController {
     @Inject(TAKE_OVER_CONVERSATION) takeOverUseCase: TakeOverConversation,
     @Inject(CONFIRM_QUOTE_DECISION)
     confirmQuoteDecision: ConfirmQuoteDecision,
+    @Inject(SEND_OPERATOR_MESSAGE) sendOperatorMessage: SendOperatorMessage,
+    @Inject(REVISE_DECLINED_QUOTE) reviseDeclinedQuote: ReviseDeclinedQuote,
     @Inject(CONFIG) config: ValidatedConfig,
   ) {
     this.review = review;
     this.takeOverUseCase = takeOverUseCase;
     this.confirmQuoteDecision = confirmQuoteDecision;
+    this.sendOperatorMessage = sendOperatorMessage;
+    this.reviseDeclinedQuote = reviseDeclinedQuote;
     this.config = config;
   }
 
@@ -146,6 +171,52 @@ export class DraftsController {
     }
     return outcome;
   }
+
+  @Post(":conversationId/messages")
+  @UseGuards(SessionGuard)
+  async sendMessage(
+    @Param("conversationId") conversationId: string,
+    @Body() body: OperatorMessageBody,
+    @Req() request: OperatorRequest,
+  ): Promise<SentOperatorMessage> {
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      typeof body.text !== "string"
+    ) {
+      throw validationError("text is required in the body.");
+    }
+    const sent = await this.sendOperatorMessage.run(
+      this.config.organization.id,
+      conversationId,
+      body.text,
+      operatorEmailOf(request),
+    );
+    if (!sent) {
+      throw new NotFoundException("No conversation with that id.");
+    }
+    return sent;
+  }
+
+  @Post(":conversationId/quote-revision")
+  @UseGuards(SessionGuard)
+  async reviseQuote(
+    @Param("conversationId") conversationId: string,
+    @Body() body: ReviseQuoteBody,
+    @Req() request: OperatorRequest,
+  ): Promise<ReviseDeclinedQuoteOutcome> {
+    const lines = parseQuoteLines(body);
+    const outcome = await this.reviseDeclinedQuote.run(
+      this.config.organization.id,
+      conversationId,
+      lines,
+      operatorEmailOf(request),
+    );
+    if (outcome.kind === "unknown") {
+      throw new NotFoundException("No conversation with that id.");
+    }
+    return outcome;
+  }
 }
 
 function parseAction(body: DraftActionBody): ReviewDraftAction {
@@ -164,4 +235,45 @@ function parseAction(body: DraftActionBody): ReviewDraftAction {
     return { action: "edit", bodyText: body.bodyText };
   }
   throw validationError('action must be "edit", "approve", or "discard".');
+}
+
+function parseQuoteLines(body: ReviseQuoteBody): QuoteRequestLine[] {
+  if (body === null || typeof body !== "object" || !Array.isArray(body.lines)) {
+    throw validationError("lines is required in the body.");
+  }
+  if (body.lines.length === 0) {
+    throw validationError("Select at least one price-list item.");
+  }
+  return body.lines.map((line) => {
+    if (line === null || typeof line !== "object") {
+      throw validationError("Each line needs a label.");
+    }
+    const record = line as {
+      ruleId?: unknown;
+      label?: unknown;
+      quantity?: unknown;
+    };
+    if (typeof record.label !== "string" || record.label.trim() === "") {
+      throw validationError("Each line needs a label.");
+    }
+    const parsed: {
+      ruleId?: string;
+      label: string;
+      quantity?: number;
+    } = { label: record.label };
+    if (typeof record.ruleId === "string" && record.ruleId !== "") {
+      parsed.ruleId = record.ruleId;
+    }
+    if (record.quantity !== undefined) {
+      if (
+        typeof record.quantity !== "number" ||
+        !Number.isInteger(record.quantity) ||
+        record.quantity < 1
+      ) {
+        throw validationError("quantity must be a positive whole number.");
+      }
+      parsed.quantity = record.quantity;
+    }
+    return parsed;
+  });
 }

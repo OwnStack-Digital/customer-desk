@@ -1,5 +1,11 @@
-import type { Thread, ThreadQuote } from "../domain/messaging";
+import type {
+  Thread,
+  ThreadQuote,
+  ThreadTimelineEntry,
+} from "../domain/messaging";
+import type { AuditEvent } from "../domain/outbox";
 import type { OwnerVisibleQuoteStatus, QuoteVersion } from "../domain/quote";
+import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { ConversationRepository } from "../ports/conversation-repository";
 import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { MessageRepository } from "../ports/message-repository";
@@ -12,6 +18,7 @@ export interface GetThreadDeps {
   readonly revisions: ProcessingRevisionRepository;
   readonly drafts: DraftRevisionRepository;
   readonly quotes: QuoteVersionRepository;
+  readonly audit: AuditEventRepository;
 }
 
 /**
@@ -86,10 +93,24 @@ export class GetThread {
     );
     // A recorded accept/decline is not open, but the owner still needs to
     // see it. Superseded versions are revoked and stay off the thread.
-    const visibleQuote = await this.deps.quotes.findLatestVisibleByConversation(
+    const visibleQuotes = await this.deps.quotes.listByConversation(
       organizationId,
       conversationId,
     );
+    const threadQuotes = visibleQuotes
+      .filter((version) => isOwnerVisible(version.status))
+      .map((version) => threadQuoteOf(version));
+    const visibleQuote = threadQuotes.at(-1);
+    const draftRows = await this.deps.drafts.listByConversation(
+      organizationId,
+      conversationId,
+    );
+    const events = await this.deps.audit.listByEntityIds(organizationId, [
+      conversation.id,
+      ...messages.map((message) => message.id),
+      ...visibleQuotes.map((version) => version.id),
+      ...draftRows.map((draft) => draft.id),
+    ]);
     return {
       conversation: {
         id: conversation.id,
@@ -151,11 +172,86 @@ export class GetThread {
             },
           }
         : {}),
-      ...(visibleQuote && isOwnerVisible(visibleQuote.status)
-        ? { quote: threadQuoteOf(visibleQuote) }
-        : {}),
+      ...(visibleQuote ? { quote: visibleQuote } : {}),
+      quotes: threadQuotes,
+      timeline: timelineOf(messages, events),
     };
   }
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  "quote.accepted": "Quote accepted",
+  "quote.declined": "Quote declined",
+  "quote.revised": "Updated quote prepared",
+  "quote.sent": "Quote link sent",
+  "draft.approved": "Draft approved",
+  "draft.edited": "Draft edited",
+  "draft.discarded": "Draft discarded",
+  "conversation.takeover": "Took over the conversation",
+};
+
+/** Message sends are the sent/received rows. These actions are not repeated. */
+const HIDDEN_EVENTS = new Set([
+  "message.sent",
+  "message.received",
+  "draft.sent",
+]);
+
+function timelineOf(
+  messages: readonly {
+    id: string;
+    direction: "inbound" | "outbound";
+    receivedAt: string;
+    fromAddress: string;
+    subject: string | null;
+    text: string | null;
+  }[],
+  events: readonly AuditEvent[],
+): ThreadTimelineEntry[] {
+  const entries: ThreadTimelineEntry[] = [
+    ...messages.map(
+      (message): ThreadTimelineEntry => ({
+        kind: message.direction === "inbound" ? "received" : "sent",
+        id: message.id,
+        at: message.receivedAt,
+        from: message.fromAddress,
+        ...(message.subject ? { subject: message.subject } : {}),
+        ...(message.text ? { text: message.text } : {}),
+      }),
+    ),
+    ...events.flatMap((event): ThreadTimelineEntry[] => {
+      const label = EVENT_LABELS[event.action];
+      if (!label || HIDDEN_EVENTS.has(event.action)) {
+        return [];
+      }
+      return [
+        {
+          kind: "event",
+          id: event.id,
+          at: event.createdAt,
+          actor: event.actor,
+          action: event.action,
+          label,
+        },
+      ];
+    }),
+  ];
+  return entries.sort(
+    (left, right) =>
+      left.at.localeCompare(right.at) ||
+      kindOrder(left.kind) - kindOrder(right.kind) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
+function kindOrder(kind: ThreadTimelineEntry["kind"]): number {
+  if (kind === "received") {
+    return 0;
+  }
+  if (kind === "sent") {
+    return 1;
+  }
+  return 2;
 }
 
 function isOwnerVisible(
@@ -175,6 +271,12 @@ function threadQuoteOf(quote: QuoteVersion): ThreadQuote {
     currency: quote.currency,
     ...(quote.decision ? { decision: quote.decision } : {}),
     ...(quote.decidedAt ? { decidedAt: quote.decidedAt } : {}),
+    lines: quote.lines.map((line) => ({
+      ruleId: line.ruleId,
+      name: line.name,
+      ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
+      amountMinor: line.amountMinor,
+    })),
   };
 }
 

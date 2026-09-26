@@ -218,10 +218,36 @@ export class DrizzleDraftRevisionRepository implements DraftRevisionRepository {
     return rows.length > 0;
   }
 
+  async listByConversation(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<readonly DraftRevision[]> {
+    const rows = await this.conversationRows(organizationId, conversationId);
+    return rows.sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    );
+  }
+
   async findLatestByConversation(
     organizationId: string,
     conversationId: string,
   ): Promise<DraftRevision | undefined> {
+    const rows = await this.conversationRows(organizationId, conversationId);
+    return rows
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.id.localeCompare(right.id),
+      )
+      .at(-1);
+  }
+
+  private async conversationRows(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<DraftRevision[]> {
     const rows =
       this.client.dialect === "sqlite"
         ? await this.sqlite()
@@ -242,14 +268,7 @@ export class DrizzleDraftRevisionRepository implements DraftRevisionRepository {
                 eq(pgDraftRevisions.conversationId, conversationId),
               ),
             );
-    return rows
-      .map((row) => this.toDraft(row))
-      .sort(
-        (left, right) =>
-          left.createdAt.localeCompare(right.createdAt) ||
-          left.id.localeCompare(right.id),
-      )
-      .at(-1);
+    return rows.map((row) => this.toDraft(row));
   }
 
   private toDraft(row: PgRow | SqliteRow): DraftRevision {

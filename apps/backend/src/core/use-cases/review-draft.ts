@@ -5,9 +5,11 @@ import type { AuditEventRepository } from "../ports/audit-event-repository";
 import type { Clock } from "../ports/clock";
 import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
 import type { IdGenerator } from "../ports/id-generator";
+import type { QuoteVersionRepository } from "../ports/quote-version-repository";
 
 export interface ReviewDraftDeps {
   readonly drafts: DraftRevisionRepository;
+  readonly quotes: QuoteVersionRepository;
   readonly audit: AuditEventRepository;
   readonly ids: IdGenerator;
   readonly clock: Clock;
@@ -172,6 +174,15 @@ export class ReviewDraft {
       );
     }
     const now = this.deps.clock.now().toISOString();
+    if (revision.quoteVersionId !== null) {
+      // An unsent quote whose draft was discarded must not stay open,
+      // or a later replacement cannot be prepared.
+      await this.deps.quotes.supersedePrepared(
+        organizationId,
+        revision.quoteVersionId,
+        now,
+      );
+    }
     await this.deps.audit.insertEvent(
       this.event(organizationId, actor, "draft.discarded", {
         entityType: "draft_revision",

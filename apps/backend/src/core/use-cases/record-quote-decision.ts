@@ -1,7 +1,10 @@
 import { ConflictError } from "../domain/errors";
+import type { MessageDirection, StoredMessage } from "../domain/messaging";
 import type { PublicQuote, QuoteDecision, QuoteVersion } from "../domain/quote";
 import type { Clock } from "../ports/clock";
+import type { ConversationRepository } from "../ports/conversation-repository";
 import type { IdGenerator } from "../ports/id-generator";
+import type { MessageRepository } from "../ports/message-repository";
 import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
 import type { QuoteVersionRepository } from "../ports/quote-version-repository";
 import type { TokenHasher } from "../ports/token-hasher";
@@ -17,30 +20,73 @@ import type { UnitOfWork } from "../ports/unit-of-work";
  * version itself is the only state that changes.
  *
  * Lookup is always by SHA-256 of the raw token; the raw token never
- * reaches a store, a log, or a response body.
+ * reaches a store, a log, or a response body. Message text shown to the
+ * customer has the raw token redacted, because the outbound quote email
+ * contains the link.
  */
 
-interface QuoteLookupDeps {
+export interface QuoteLookupDeps {
   readonly quotes: QuoteVersionRepository;
   readonly tokenHasher: TokenHasher;
   readonly profile: OrganizationProfileRepository;
   readonly clock: Clock;
 }
 
+/** One customer-visible message. No HTML, drafts, or internal notes. */
+export interface PublicThreadMessage {
+  readonly id: string;
+  readonly direction: MessageDirection;
+  readonly at: string;
+  readonly from: string;
+  readonly text?: string;
+}
+
+/** Public quote plus the conversation the customer is allowed to see. */
+export interface PublicQuoteView extends PublicQuote {
+  readonly messages: readonly PublicThreadMessage[];
+}
+
+export interface GetPublicQuoteDeps extends QuoteLookupDeps {
+  readonly conversations: ConversationRepository;
+  readonly messages: MessageRepository;
+}
+
 /** Public display of one quote (GET /public/quotes/:token). */
 export class GetPublicQuote {
-  constructor(private readonly deps: QuoteLookupDeps) {}
+  constructor(private readonly deps: GetPublicQuoteDeps) {}
 
   async run(
     organizationId: string,
     rawToken: string,
-  ): Promise<PublicQuote | undefined> {
-    const quote = await findVisible(
+  ): Promise<PublicQuoteView | undefined> {
+    const quote = await findVisibleQuote(
       this.deps,
       organizationId,
       this.deps.tokenHasher.hash(rawToken),
     );
-    return quote ? publicQuoteOf(this.deps, quote) : undefined;
+    if (!quote) {
+      return undefined;
+    }
+    const conversation = await this.deps.conversations.findById(
+      organizationId,
+      quote.conversationId,
+    );
+    const stored = await this.deps.messages.listByConversation(
+      organizationId,
+      quote.conversationId,
+    );
+    const businessName = this.deps.profile.getProfile().name;
+    return {
+      ...publicQuoteOf(this.deps, quote),
+      messages: stored.map((message) =>
+        publicMessageOf(
+          message,
+          businessName,
+          conversation?.fromAddress,
+          rawToken,
+        ),
+      ),
+    };
   }
 }
 
@@ -58,7 +104,7 @@ export class RecordQuoteDecision {
     rawToken: string,
     decision: QuoteDecision,
   ): Promise<PublicQuote | undefined> {
-    const quote = await findVisible(
+    const quote = await findVisibleQuote(
       this.deps,
       organizationId,
       this.deps.tokenHasher.hash(rawToken),
@@ -121,7 +167,7 @@ export class RecordQuoteDecision {
  * token whose `validUntil` has passed is 404 (expired), and `accepted` /
  * `declined` are always displayable with `canDecide: false`.
  */
-async function findVisible(
+export async function findVisibleQuote(
   deps: QuoteLookupDeps,
   organizationId: string,
   tokenHash: string,
@@ -134,7 +180,7 @@ async function findVisible(
     return undefined;
   }
   if (quote.status === "sent" && !canDecide(deps, quote)) {
-    // Expired: never displayed, never decidable.
+    // Expired: never displayed, never decidable, never messageable.
     return undefined;
   }
   return quote;
@@ -169,6 +215,28 @@ function publicQuoteOf(
     validUntil: quote.validUntil ?? "",
     // `sent` and unexpired — decided versions are display-only.
     canDecide: canDecide(deps, quote),
+  };
+}
+
+function publicMessageOf(
+  message: StoredMessage,
+  businessName: string,
+  customerAddress: string | undefined,
+  rawToken: string,
+): PublicThreadMessage {
+  const from =
+    message.direction === "outbound"
+      ? businessName
+      : message.fromAddress === customerAddress
+        ? "You"
+        : (message.fromName ?? message.fromAddress);
+  const text = message.text?.split(rawToken).join("(this link)");
+  return {
+    id: message.id,
+    direction: message.direction,
+    at: message.receivedAt,
+    from,
+    ...(text ? { text } : {}),
   };
 }
 

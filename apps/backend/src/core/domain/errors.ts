@@ -16,6 +16,16 @@ export class StaleRevisionError extends Error {
   }
 }
 
+/** 422 `validation`: the request body is present but not acceptable. */
+export class ValidationError extends Error {
+  readonly code = "validation";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
 /** 409 `conflict`: the request conflicts with stored state (PLAN.md table). */
 export class ConflictError extends Error {
   readonly code = "conflict";

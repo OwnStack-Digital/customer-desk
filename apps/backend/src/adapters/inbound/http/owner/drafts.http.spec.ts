@@ -419,4 +419,24 @@ describe("POST /drafts/:revisionId/send and GET /outbox over HTTP", () => {
     const sender = app.get(EMAIL_SENDER_PORT) as { recorded: unknown[] };
     expect(sender.recorded).toHaveLength(0);
   });
+
+  it("queues an operator message with no approved draft", async () => {
+    const cookie = await loginCookie();
+    const { conversationId } = await ingest("src-operator-message");
+    const sent = await request(app.getHttpServer())
+      .post(`/threads/${conversationId}/messages`)
+      .set("Cookie", cookie)
+      .send({ text: "We can do Saturday morning." });
+    expect(sent.status).toBe(201);
+    expect(sent.body.conversationId).toBe(conversationId);
+
+    const thread = await request(app.getHttpServer())
+      .get(`/threads/${conversationId}`)
+      .set("Cookie", cookie);
+    expect(thread.body.messages.at(-1)).toMatchObject({
+      direction: "outbound",
+      text: "We can do Saturday morning.",
+    });
+    expect(thread.body.draft?.status).toBe("proposed");
+  });
 });

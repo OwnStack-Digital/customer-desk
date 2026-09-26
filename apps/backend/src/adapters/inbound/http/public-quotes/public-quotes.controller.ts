@@ -10,6 +10,11 @@ import {
 } from "@nestjs/common";
 import type { QuoteDecision } from "../../../../core/domain/quote";
 import {
+  RECORD_CUSTOMER_MESSAGE,
+  type RecordCustomerMessage,
+  type RecordedCustomerMessage,
+} from "../../../../core/use-cases/record-customer-message";
+import {
   GET_PUBLIC_QUOTE,
   type GetPublicQuote,
   RECORD_QUOTE_DECISION,
@@ -21,6 +26,10 @@ import { validationError } from "../shared/http-error";
 
 interface DecisionBody {
   decision?: unknown;
+}
+
+interface CustomerMessageBody {
+  text?: unknown;
 }
 
 /**
@@ -36,15 +45,18 @@ interface DecisionBody {
 export class PublicQuotesController {
   private readonly getQuote: GetPublicQuote;
   private readonly decide: RecordQuoteDecision;
+  private readonly recordMessage: RecordCustomerMessage;
   private readonly config: ValidatedConfig;
 
   constructor(
     @Inject(GET_PUBLIC_QUOTE) getQuote: GetPublicQuote,
     @Inject(RECORD_QUOTE_DECISION) decide: RecordQuoteDecision,
+    @Inject(RECORD_CUSTOMER_MESSAGE) recordMessage: RecordCustomerMessage,
     @Inject(CONFIG) config: ValidatedConfig,
   ) {
     this.getQuote = getQuote;
     this.decide = decide;
+    this.recordMessage = recordMessage;
     this.config = config;
   }
 
@@ -82,5 +94,28 @@ export class PublicQuotesController {
       throw new NotFoundException("No quote found for this link.");
     }
     return quote;
+  }
+
+  @Post(":token/messages")
+  async sendMessage(
+    @Param("token") token: string,
+    @Body() body: CustomerMessageBody,
+  ): Promise<RecordedCustomerMessage> {
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      typeof body.text !== "string"
+    ) {
+      throw validationError("text is required in the body.");
+    }
+    const recorded = await this.recordMessage.run(
+      this.config.organization.id,
+      token,
+      body.text,
+    );
+    if (!recorded) {
+      throw new NotFoundException("No quote found for this link.");
+    }
+    return recorded;
   }
 }
