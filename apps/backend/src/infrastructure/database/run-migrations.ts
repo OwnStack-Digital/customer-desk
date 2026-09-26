@@ -5,6 +5,7 @@ import {
   type PostgresDb,
   type SqliteDb,
 } from "../../adapters/outbound/persistence/client";
+import { loadDotEnvIfPresent, rootsFromMigrationRunner } from "../env-file";
 import { migrationDialect, migrationsOutDir } from "./drizzle.config";
 
 /**
@@ -49,6 +50,7 @@ export function readJournal(
  * its migration folder and journal; a mismatch between them is a hard error.
  */
 async function main(): Promise<number> {
+  loadDotEnvIfPresent(rootsFromMigrationRunner(__dirname));
   const dialect = migrationDialect(process.env);
   const migrationsFolder = migrationsOutDir(dialect);
   let journal: MigrationJournal;
