@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DraftRevision } from "../domain/drafting";
-import type { ProcessingRevision } from "../domain/processing";
-import { ProcessInboundMessage } from "./process-inbound-message";
-import { RetryMessageProcessing } from "./retry-message-processing";
+import type { DraftRevision } from "../../domain/drafting";
+import type { ProcessingRevision } from "../../domain/processing";
 import {
   classificationOf,
   email,
@@ -11,7 +9,9 @@ import {
   harness,
   ORG,
   SequentialIds,
-} from "./testing";
+} from "../testing";
+import { ProcessInboundMessage } from "./process-inbound-message";
+import { RetryMessageProcessing } from "./retry-message-processing";
 
 /**
  * Slice 4 acceptance (PLAN.md tasks 4.2–4.4): grounded FAQ drafts, the

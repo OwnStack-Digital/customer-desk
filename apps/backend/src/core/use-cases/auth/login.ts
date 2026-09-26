@@ -1,10 +1,10 @@
-import { AuthError, type OperatorSession } from "../domain/auth";
-import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
-import type { OperatorCredentialRepository } from "../ports/operator-credential-repository";
-import type { PasswordHasher } from "../ports/password-hasher";
-import type { SessionRepository } from "../ports/session-repository";
-import type { TokenHasher } from "../ports/token-hasher";
+import { AuthError, type OperatorSession } from "../../domain/auth";
+import type { Clock } from "../../ports/clock";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { OperatorCredentialRepository } from "../../ports/operator-credential-repository";
+import type { PasswordHasher } from "../../ports/password-hasher";
+import type { SessionRepository } from "../../ports/session-repository";
+import type { TokenHasher } from "../../ports/token-hasher";
 
 export interface LoginDeps {
   readonly credentials: OperatorCredentialRepository;

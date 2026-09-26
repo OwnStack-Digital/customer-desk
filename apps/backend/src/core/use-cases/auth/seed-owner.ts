@@ -1,7 +1,7 @@
-import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
-import type { OperatorCredentialRepository } from "../ports/operator-credential-repository";
-import type { PasswordHasher } from "../ports/password-hasher";
+import type { Clock } from "../../ports/clock";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { OperatorCredentialRepository } from "../../ports/operator-credential-repository";
+import type { PasswordHasher } from "../../ports/password-hasher";
 
 export interface SeedOwnerDeps {
   readonly credentials: OperatorCredentialRepository;

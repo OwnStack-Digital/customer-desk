@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { OperatorCredential, OperatorSession } from "../domain/auth";
-import { AuthError } from "../domain/auth";
-import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
-import type { OperatorCredentialRepository } from "../ports/operator-credential-repository";
-import type { PasswordHasher } from "../ports/password-hasher";
-import type { SessionRepository } from "../ports/session-repository";
+import type { OperatorCredential, OperatorSession } from "../../domain/auth";
+import { AuthError } from "../../domain/auth";
+import type { Clock } from "../../ports/clock";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { OperatorCredentialRepository } from "../../ports/operator-credential-repository";
+import type { PasswordHasher } from "../../ports/password-hasher";
+import type { SessionRepository } from "../../ports/session-repository";
 import { AuthenticateSession } from "./authenticate-session";
 import { Login } from "./login";
 import { Logout } from "./logout";

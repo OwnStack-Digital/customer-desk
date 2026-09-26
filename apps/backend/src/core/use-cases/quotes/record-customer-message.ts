@@ -1,14 +1,18 @@
-import type { StoredMessage } from "../domain/messaging";
-import { mailDomain, messageTextOf, replySubject } from "../domain/messaging";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
-import type { TokenHasher } from "../ports/token-hasher";
-import type { UnitOfWork } from "../ports/unit-of-work";
-import type { ProcessInboundMessage } from "./process-inbound-message";
+import type { StoredMessage } from "../../domain/messaging";
+import {
+  mailDomain,
+  messageTextOf,
+  replySubject,
+} from "../../domain/messaging";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
+import type { TokenHasher } from "../../ports/token-hasher";
+import type { UnitOfWork } from "../../ports/unit-of-work";
+import type { ProcessInboundMessage } from "../ingress/process-inbound-message";
 import { findVisibleQuote } from "./record-quote-decision";
 
 export interface RecordCustomerMessageDeps {

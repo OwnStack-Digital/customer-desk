@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { KnowledgeBase } from "../domain/config";
-import type { DraftRevision } from "../domain/drafting";
-import { ConflictError, StaleRevisionError } from "../domain/errors";
-import { ProcessInboundMessage } from "./process-inbound-message";
+import type { KnowledgeBase } from "../../domain/config";
+import type { DraftRevision } from "../../domain/drafting";
+import { ConflictError, StaleRevisionError } from "../../domain/errors";
+import { ProcessInboundMessage } from "../ingress/process-inbound-message";
 import {
   classificationOf,
   email,
@@ -10,7 +10,7 @@ import {
   harness,
   ORG,
   SequentialIds,
-} from "./testing";
+} from "../testing";
 
 /**
  * Slice 5 acceptance (PLAN.md tasks 5.2–5.4): the draft state machine

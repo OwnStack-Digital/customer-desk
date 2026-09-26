@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ConflictError, ValidationError } from "../domain/errors";
-import { ReviseDeclinedQuote } from "./revise-declined-quote";
+import { ConflictError, ValidationError } from "../../domain/errors";
 import {
   classificationOf,
   email,
   FakeUnitOfWork,
   harness,
   ORG,
-} from "./testing";
+} from "../testing";
+import { ReviseDeclinedQuote } from "./revise-declined-quote";
 
 const OPERATOR = "owner@harbourandpine.example";
 

@@ -13,13 +13,13 @@ import {
   RECORD_CUSTOMER_MESSAGE,
   type RecordCustomerMessage,
   type RecordedCustomerMessage,
-} from "../../../../core/use-cases/record-customer-message";
+} from "../../../../core/use-cases/quotes/record-customer-message";
 import {
   GET_PUBLIC_QUOTE,
   type GetPublicQuote,
   RECORD_QUOTE_DECISION,
   type RecordQuoteDecision,
-} from "../../../../core/use-cases/record-quote-decision";
+} from "../../../../core/use-cases/quotes/record-quote-decision";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { validationError } from "../shared/http-error";

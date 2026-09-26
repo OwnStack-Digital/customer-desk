@@ -44,15 +44,15 @@ import {
 import {
   PROCESS_INBOUND_MESSAGE,
   ProcessInboundMessage,
-} from "../../../core/use-cases/process-inbound-message";
+} from "../../../core/use-cases/ingress/process-inbound-message";
 import {
   RECEIVE_INBOUND_EMAIL,
   ReceiveInboundEmail,
-} from "../../../core/use-cases/receive-inbound-email";
+} from "../../../core/use-cases/ingress/receive-inbound-email";
 import {
   RETRY_MESSAGE_PROCESSING,
   RetryMessageProcessing,
-} from "../../../core/use-cases/retry-message-processing";
+} from "../../../core/use-cases/ingress/retry-message-processing";
 
 export const ingressUseCaseProviders: Provider[] = [
   {

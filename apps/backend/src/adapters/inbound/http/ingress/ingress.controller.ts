@@ -5,7 +5,7 @@ import {
   RECEIVE_INBOUND_EMAIL,
   type ReceiveInboundEmail,
   type ReceiveInboundEmailResult,
-} from "../../../../core/use-cases/receive-inbound-email";
+} from "../../../../core/use-cases/ingress/receive-inbound-email";
 import { validationError } from "../shared/http-error";
 import { IngressGuard } from "./ingress.guard";
 

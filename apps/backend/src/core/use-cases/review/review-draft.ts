@@ -1,11 +1,11 @@
-import type { DraftRevision, DraftStatus } from "../domain/drafting";
-import { StaleRevisionError } from "../domain/errors";
-import type { AuditEvent } from "../domain/outbox";
-import type { AuditEventRepository } from "../ports/audit-event-repository";
-import type { Clock } from "../ports/clock";
-import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
+import type { DraftRevision, DraftStatus } from "../../domain/drafting";
+import { StaleRevisionError } from "../../domain/errors";
+import type { AuditEvent } from "../../domain/outbox";
+import type { AuditEventRepository } from "../../ports/audit-event-repository";
+import type { Clock } from "../../ports/clock";
+import type { DraftRevisionRepository } from "../../ports/draft-revision-repository";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
 
 export interface ReviewDraftDeps {
   readonly drafts: DraftRevisionRepository;

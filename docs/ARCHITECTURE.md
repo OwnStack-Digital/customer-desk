@@ -307,13 +307,13 @@ apps/
   backend/                      # BOS API + application core (sole domain host)
     src/
       core/                     # application boundary
-        use-cases/              # flat, prominent application actions
-          receive-inbound-email.ts
-          process-inbound-message.ts
-          review-draft.ts
-          send-approved-draft.ts
-          record-quote-decision.ts
-          ...
+        use-cases/              # grouped by workflow, not by caller
+          auth/                 # login, logout, session, seed
+          ingress/              # receive, process, retry
+          inbox/                # list and thread reads
+          review/               # draft review, send, takeover, outbox
+          quotes/               # decisions, revision, catalog read
+          testing.ts            # in-memory fakes for use-case specs
         domain/                 # few types, states, pure pricing
         ports/                  # repositories and external capabilities
       adapters/
@@ -347,7 +347,7 @@ docs/PRODUCT.md
 docs/ARCHITECTURE.md
 ```
 
-Use cases are the input ports; do not create duplicate `ports/input` interfaces. `apps/backend` core imports nothing from adapters, infrastructure, or `apps/web`. `apps/web` must not import backend source or open the operational DB; optional Next route handlers are transport-only (cookie/BFF), not a second API. Keep use cases flat until their number—not anticipated future complexity—requires grouping. Nest stays the six modules in [`DECISIONS.md`](./DECISIONS.md): folder groups are not modules. Repository bindings live in `PersistenceModule`; use-case factories live in `infrastructure/composition/providers` and are registered by `ApiModule`. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
+Use cases are the input ports; do not create duplicate `ports/input` interfaces. `apps/backend` core imports nothing from adapters, infrastructure, or `apps/web`. `apps/web` must not import backend source or open the operational DB; optional Next route handlers are transport-only (cookie/BFF), not a second API. Use-case folders group workflows. They are not Nest modules and not trust boundaries; the same use case may be called from more than one adapter. Do not add a folder for one anticipated use case, and do not nest further. Nest stays the six modules in [`DECISIONS.md`](./DECISIONS.md): folder groups are not modules. Repository bindings live in `PersistenceModule`; use-case factories live in `infrastructure/composition/providers` and are registered by `ApiModule`. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
 
 ## Hard rules
 

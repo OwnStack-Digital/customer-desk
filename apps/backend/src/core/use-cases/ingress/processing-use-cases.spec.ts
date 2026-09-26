@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProcessingResult } from "../domain/processing";
-import { RetryMessageProcessing } from "./retry-message-processing";
+import type { ProcessingResult } from "../../domain/processing";
 import {
   classificationOf,
   email,
@@ -8,7 +7,8 @@ import {
   NOW,
   ORG,
   outboundFixture,
-} from "./testing";
+} from "../testing";
+import { RetryMessageProcessing } from "./retry-message-processing";
 
 /**
  * Slice 3 processing state machine, per PLAN.md acceptance: one fixture per

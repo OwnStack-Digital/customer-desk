@@ -9,8 +9,8 @@ import {
 } from "@nestjs/common";
 import type { Response } from "express";
 import { z } from "zod";
-import { LOGIN, type Login } from "../../../../core/use-cases/login";
-import { LOGOUT, type Logout } from "../../../../core/use-cases/logout";
+import { LOGIN, type Login } from "../../../../core/use-cases/auth/login";
+import { LOGOUT, type Logout } from "../../../../core/use-cases/auth/logout";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import {

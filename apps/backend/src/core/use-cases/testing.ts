@@ -43,16 +43,19 @@ import type {
   TransactionScopedRepositories,
   UnitOfWork,
 } from "../ports/unit-of-work";
-import { ConfirmQuoteDecision } from "./confirm-quote-decision";
-import { GetThread } from "./get-thread";
-import { ListInbox } from "./list-inbox";
-import { ListOutbox } from "./list-outbox";
-import { ProcessInboundMessage } from "./process-inbound-message";
-import { ReceiveInboundEmail } from "./receive-inbound-email";
-import { GetPublicQuote, RecordQuoteDecision } from "./record-quote-decision";
-import { ReviewDraft } from "./review-draft";
-import { SendApprovedDraft } from "./send-approved-draft";
-import { TakeOverConversation } from "./take-over-conversation";
+import { GetThread } from "./inbox/get-thread";
+import { ListInbox } from "./inbox/list-inbox";
+import { ProcessInboundMessage } from "./ingress/process-inbound-message";
+import { ReceiveInboundEmail } from "./ingress/receive-inbound-email";
+import { ConfirmQuoteDecision } from "./quotes/confirm-quote-decision";
+import {
+  GetPublicQuote,
+  RecordQuoteDecision,
+} from "./quotes/record-quote-decision";
+import { ListOutbox } from "./review/list-outbox";
+import { ReviewDraft } from "./review/review-draft";
+import { SendApprovedDraft } from "./review/send-approved-draft";
+import { TakeOverConversation } from "./review/take-over-conversation";
 
 export const ORG = "org_harbour_pine";
 export const MAILBOX = "mb_main";

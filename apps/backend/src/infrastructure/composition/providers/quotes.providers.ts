@@ -29,23 +29,23 @@ import {
   type UnitOfWork,
 } from "../../../core/ports/unit-of-work";
 import {
-  CONFIRM_QUOTE_DECISION,
-  ConfirmQuoteDecision,
-} from "../../../core/use-cases/confirm-quote-decision";
-import {
   PROCESS_INBOUND_MESSAGE,
   type ProcessInboundMessage,
-} from "../../../core/use-cases/process-inbound-message";
+} from "../../../core/use-cases/ingress/process-inbound-message";
+import {
+  CONFIRM_QUOTE_DECISION,
+  ConfirmQuoteDecision,
+} from "../../../core/use-cases/quotes/confirm-quote-decision";
 import {
   RECORD_CUSTOMER_MESSAGE,
   RecordCustomerMessage,
-} from "../../../core/use-cases/record-customer-message";
+} from "../../../core/use-cases/quotes/record-customer-message";
 import {
   GET_PUBLIC_QUOTE,
   GetPublicQuote,
   RECORD_QUOTE_DECISION,
   RecordQuoteDecision,
-} from "../../../core/use-cases/record-quote-decision";
+} from "../../../core/use-cases/quotes/record-quote-decision";
 
 export const quotesProviders: Provider[] = [
   {

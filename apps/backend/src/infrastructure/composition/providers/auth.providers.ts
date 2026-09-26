@@ -24,18 +24,18 @@ import {
   AUTHENTICATE_SESSION,
   AuthenticateSession,
   type AuthenticateSessionDeps,
-} from "../../../core/use-cases/authenticate-session";
-import { LOGIN, Login } from "../../../core/use-cases/login";
+} from "../../../core/use-cases/auth/authenticate-session";
+import { LOGIN, Login } from "../../../core/use-cases/auth/login";
 import {
   LOGOUT,
   Logout,
   type LogoutDeps,
-} from "../../../core/use-cases/logout";
+} from "../../../core/use-cases/auth/logout";
 import {
   SEED_OWNER,
   SeedOwner,
   type SeedOwnerDeps,
-} from "../../../core/use-cases/seed-owner";
+} from "../../../core/use-cases/auth/seed-owner";
 
 /** 7-day absolute session lifetime (docs/PLAN.md frozen choices). */
 const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;

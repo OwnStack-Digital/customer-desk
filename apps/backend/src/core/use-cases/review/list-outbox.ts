@@ -1,5 +1,5 @@
-import type { OutboxPage } from "../domain/outbox";
-import type { OutboxRepository } from "../ports/outbox-repository";
+import type { OutboxPage } from "../../domain/outbox";
+import type { OutboxRepository } from "../../ports/outbox-repository";
 
 /**
  * `GET /outbox` (PLAN.md task 5.3): queued/failed/uncertain rows of the

@@ -54,32 +54,41 @@ import {
   type UnitOfWork,
 } from "../../../core/ports/unit-of-work";
 import {
+  GET_THREAD,
+  GetThread,
+} from "../../../core/use-cases/inbox/get-thread";
+import {
+  LIST_INBOX,
+  ListInbox,
+} from "../../../core/use-cases/inbox/list-inbox";
+import {
   GET_PRICE_CATALOG,
   GetPriceCatalog,
-} from "../../../core/use-cases/get-price-catalog";
-import { GET_THREAD, GetThread } from "../../../core/use-cases/get-thread";
-import { LIST_INBOX, ListInbox } from "../../../core/use-cases/list-inbox";
-import { LIST_OUTBOX, ListOutbox } from "../../../core/use-cases/list-outbox";
-import {
-  REVIEW_DRAFT,
-  ReviewDraft,
-} from "../../../core/use-cases/review-draft";
+} from "../../../core/use-cases/quotes/get-price-catalog";
 import {
   REVISE_DECLINED_QUOTE,
   ReviseDeclinedQuote,
-} from "../../../core/use-cases/revise-declined-quote";
+} from "../../../core/use-cases/quotes/revise-declined-quote";
+import {
+  LIST_OUTBOX,
+  ListOutbox,
+} from "../../../core/use-cases/review/list-outbox";
+import {
+  REVIEW_DRAFT,
+  ReviewDraft,
+} from "../../../core/use-cases/review/review-draft";
 import {
   SEND_APPROVED_DRAFT,
   SendApprovedDraft,
-} from "../../../core/use-cases/send-approved-draft";
+} from "../../../core/use-cases/review/send-approved-draft";
 import {
   SEND_OPERATOR_MESSAGE,
   SendOperatorMessage,
-} from "../../../core/use-cases/send-operator-message";
+} from "../../../core/use-cases/review/send-operator-message";
 import {
   TAKE_OVER_CONVERSATION,
   TakeOverConversation,
-} from "../../../core/use-cases/take-over-conversation";
+} from "../../../core/use-cases/review/take-over-conversation";
 
 export const ownerProviders: Provider[] = [
   {

@@ -13,27 +13,27 @@ import {
   CONFIRM_QUOTE_DECISION,
   type ConfirmQuoteDecision,
   type ConfirmQuoteDecisionOutcome,
-} from "../../../../core/use-cases/confirm-quote-decision";
+} from "../../../../core/use-cases/quotes/confirm-quote-decision";
+import {
+  REVISE_DECLINED_QUOTE,
+  type ReviseDeclinedQuote,
+  type ReviseDeclinedQuoteOutcome,
+} from "../../../../core/use-cases/quotes/revise-declined-quote";
 import {
   REVIEW_DRAFT,
   type ReviewDraft,
   type ReviewDraftAction,
   type ReviewedDraft,
-} from "../../../../core/use-cases/review-draft";
-import {
-  REVISE_DECLINED_QUOTE,
-  type ReviseDeclinedQuote,
-  type ReviseDeclinedQuoteOutcome,
-} from "../../../../core/use-cases/revise-declined-quote";
+} from "../../../../core/use-cases/review/review-draft";
 import {
   SEND_OPERATOR_MESSAGE,
   type SendOperatorMessage,
   type SentOperatorMessage,
-} from "../../../../core/use-cases/send-operator-message";
+} from "../../../../core/use-cases/review/send-operator-message";
 import {
   TAKE_OVER_CONVERSATION,
   type TakeOverConversation,
-} from "../../../../core/use-cases/take-over-conversation";
+} from "../../../../core/use-cases/review/take-over-conversation";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { validationError } from "../shared/http-error";

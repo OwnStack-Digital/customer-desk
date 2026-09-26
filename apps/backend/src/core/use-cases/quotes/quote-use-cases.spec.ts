@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ConflictError } from "../domain/errors";
-import type { Classification } from "../domain/processing";
-import { QUOTE_LINK_PLACEHOLDER } from "../domain/quote";
-import type { Clock } from "../ports/clock";
-import { GetPublicQuote, RecordQuoteDecision } from "./record-quote-decision";
+import { ConflictError } from "../../domain/errors";
+import type { Classification } from "../../domain/processing";
+import { QUOTE_LINK_PLACEHOLDER } from "../../domain/quote";
+import type { Clock } from "../../ports/clock";
 import {
   classificationOf,
   email,
@@ -13,7 +12,8 @@ import {
   NOW,
   ORG,
   SequentialIds,
-} from "./testing";
+} from "../testing";
+import { GetPublicQuote, RecordQuoteDecision } from "./record-quote-decision";
 
 /**
  * Slice 6 acceptance (PLAN.md tasks 6.3–6.5): quote versions are priced in
@@ -316,9 +316,9 @@ describe("quote send integration (task 6.4)", () => {
       { action: "approve" },
       "operator",
     );
-    const { SendApprovedDraft } = await import("./send-approved-draft");
+    const { SendApprovedDraft } = await import("../review/send-approved-draft");
     const { FakeTokens, FakeTokenHasher, FakeUnitOfWork } = await import(
-      "./testing"
+      "../testing"
     );
     const send = new SendApprovedDraft({
       conversations: h.conversations,

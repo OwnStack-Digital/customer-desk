@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ValidationError } from "../domain/errors";
-import type { Clock } from "../ports/clock";
-import { RecordCustomerMessage } from "./record-customer-message";
+import { ValidationError } from "../../domain/errors";
+import type { Clock } from "../../ports/clock";
 import {
   classificationOf,
   email,
   FakeUnitOfWork,
   harness,
   ORG,
-} from "./testing";
+} from "../testing";
+import { RecordCustomerMessage } from "./record-customer-message";
 
 class LateClock implements Clock {
   now(): Date {

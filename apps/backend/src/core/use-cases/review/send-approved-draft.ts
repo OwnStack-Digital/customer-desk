@@ -1,20 +1,20 @@
-import type { DraftRevision } from "../domain/drafting";
-import { ConflictError } from "../domain/errors";
-import type { StoredMessage } from "../domain/messaging";
-import type { OutboxEntry } from "../domain/outbox";
-import { QUOTE_LINK_PLACEHOLDER } from "../domain/quote";
-import type { AuditEventRepository } from "../ports/audit-event-repository";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { OutboxRepository } from "../ports/outbox-repository";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
-import type { TokenGenerator } from "../ports/token-generator";
-import type { TokenHasher } from "../ports/token-hasher";
-import type { UnitOfWork } from "../ports/unit-of-work";
+import type { DraftRevision } from "../../domain/drafting";
+import { ConflictError } from "../../domain/errors";
+import type { StoredMessage } from "../../domain/messaging";
+import type { OutboxEntry } from "../../domain/outbox";
+import { QUOTE_LINK_PLACEHOLDER } from "../../domain/quote";
+import type { AuditEventRepository } from "../../ports/audit-event-repository";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../../ports/draft-revision-repository";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { OutboxRepository } from "../../ports/outbox-repository";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
+import type { TokenGenerator } from "../../ports/token-generator";
+import type { TokenHasher } from "../../ports/token-hasher";
+import type { UnitOfWork } from "../../ports/unit-of-work";
 
 export interface SendApprovedDraftDeps {
   readonly conversations: ConversationRepository;

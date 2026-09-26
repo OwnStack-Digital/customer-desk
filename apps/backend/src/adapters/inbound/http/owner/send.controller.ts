@@ -13,7 +13,7 @@ import {
   SEND_APPROVED_DRAFT,
   type SendApprovedDraft,
   type SendResult,
-} from "../../../../core/use-cases/send-approved-draft";
+} from "../../../../core/use-cases/review/send-approved-draft";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { validationError } from "../shared/http-error";

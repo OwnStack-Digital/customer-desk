@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { COMPLAINT_DRAFT_BODY } from "../domain/drafting";
-import { ConflictError } from "../domain/errors";
-import { classificationOf, email, harness, NOW, ORG } from "./testing";
+import { COMPLAINT_DRAFT_BODY } from "../../domain/drafting";
+import { ConflictError } from "../../domain/errors";
+import { classificationOf, email, harness, NOW, ORG } from "../testing";
 
 /**
  * Slice 7 acceptance (PLAN.md task 7.3): the operator-side confirmation of

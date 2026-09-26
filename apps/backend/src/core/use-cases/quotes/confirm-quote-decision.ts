@@ -1,9 +1,9 @@
-import { ConflictError } from "../domain/errors";
-import type { QuoteDecision, QuoteVersion } from "../domain/quote";
-import type { Clock } from "../ports/clock";
-import type { IdGenerator } from "../ports/id-generator";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
-import type { UnitOfWork } from "../ports/unit-of-work";
+import { ConflictError } from "../../domain/errors";
+import type { QuoteDecision, QuoteVersion } from "../../domain/quote";
+import type { Clock } from "../../ports/clock";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
+import type { UnitOfWork } from "../../ports/unit-of-work";
 
 export interface ConfirmQuoteDecisionDeps {
   readonly quotes: QuoteVersionRepository;

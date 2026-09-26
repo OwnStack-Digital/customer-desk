@@ -10,7 +10,7 @@ import type { ProcessingResult } from "../../../../core/domain/processing";
 import {
   RETRY_MESSAGE_PROCESSING,
   type RetryMessageProcessing,
-} from "../../../../core/use-cases/retry-message-processing";
+} from "../../../../core/use-cases/ingress/retry-message-processing";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { SessionGuard } from "../shared/session.guard";

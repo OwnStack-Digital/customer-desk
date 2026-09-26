@@ -3,14 +3,14 @@ import type {
   InboundEmail,
   ProcessingStatus,
   StoredMessage,
-} from "../domain/messaging";
-import { InboundValidationError } from "../domain/messaging";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+} from "../../domain/messaging";
+import { InboundValidationError } from "../../domain/messaging";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { ProcessingRevisionRepository } from "../../ports/processing-revision-repository";
 import type { ProcessInboundMessage } from "./process-inbound-message";
 
 export interface ReceiveInboundEmailDeps {

@@ -1,7 +1,7 @@
-import type { AuditEventRepository } from "../ports/audit-event-repository";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { IdGenerator } from "../ports/id-generator";
+import type { AuditEventRepository } from "../../ports/audit-event-repository";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { IdGenerator } from "../../ports/id-generator";
 
 export interface TakeOverConversationDeps {
   readonly conversations: ConversationRepository;

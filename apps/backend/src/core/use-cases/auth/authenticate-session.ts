@@ -1,7 +1,7 @@
-import { AuthError, type OperatorSession } from "../domain/auth";
-import type { Clock } from "../ports/clock";
-import type { SessionRepository } from "../ports/session-repository";
-import type { TokenHasher } from "../ports/token-hasher";
+import { AuthError, type OperatorSession } from "../../domain/auth";
+import type { Clock } from "../../ports/clock";
+import type { SessionRepository } from "../../ports/session-repository";
+import type { TokenHasher } from "../../ports/token-hasher";
 
 export interface AuthenticateSessionDeps {
   readonly sessions: SessionRepository;

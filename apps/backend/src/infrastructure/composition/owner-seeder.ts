@@ -1,7 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CONFIG } from "../../adapters/outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../adapters/outbound/config-files/loader";
-import { SEED_OWNER, type SeedOwner } from "../../core/use-cases/seed-owner";
+import {
+  SEED_OWNER,
+  type SeedOwner,
+} from "../../core/use-cases/auth/seed-owner";
 import { createLogger } from "../logger";
 
 /**

@@ -2,15 +2,15 @@ import type {
   Thread,
   ThreadQuote,
   ThreadTimelineEntry,
-} from "../domain/messaging";
-import type { AuditEvent } from "../domain/outbox";
-import type { OwnerVisibleQuoteStatus, QuoteVersion } from "../domain/quote";
-import type { AuditEventRepository } from "../ports/audit-event-repository";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
-import type { MessageRepository } from "../ports/message-repository";
-import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
+} from "../../domain/messaging";
+import type { AuditEvent } from "../../domain/outbox";
+import type { OwnerVisibleQuoteStatus, QuoteVersion } from "../../domain/quote";
+import type { AuditEventRepository } from "../../ports/audit-event-repository";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../../ports/draft-revision-repository";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { ProcessingRevisionRepository } from "../../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
 
 export interface GetThreadDeps {
   readonly conversations: ConversationRepository;

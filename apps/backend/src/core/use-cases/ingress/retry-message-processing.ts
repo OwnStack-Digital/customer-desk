@@ -1,6 +1,6 @@
-import type { ProcessingResult } from "../domain/processing";
-import type { MessageRepository } from "../ports/message-repository";
-import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
+import type { ProcessingResult } from "../../domain/processing";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { ProcessingRevisionRepository } from "../../ports/processing-revision-repository";
 import type { ProcessInboundMessage } from "./process-inbound-message";
 
 export interface RetryMessageProcessingDeps {

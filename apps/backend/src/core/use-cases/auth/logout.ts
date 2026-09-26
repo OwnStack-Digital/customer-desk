@@ -1,6 +1,6 @@
-import type { Clock } from "../ports/clock";
-import type { SessionRepository } from "../ports/session-repository";
-import type { TokenHasher } from "../ports/token-hasher";
+import type { Clock } from "../../ports/clock";
+import type { SessionRepository } from "../../ports/session-repository";
+import type { TokenHasher } from "../../ports/token-hasher";
 
 export interface LogoutDeps {
   readonly sessions: SessionRepository;

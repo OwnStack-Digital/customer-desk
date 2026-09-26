@@ -9,18 +9,18 @@ import {
 } from "@nestjs/common";
 import type { InboxFilter } from "../../../../core/domain/messaging";
 import {
-  GET_PRICE_CATALOG,
-  type GetPriceCatalog,
-  type PriceCatalog,
-} from "../../../../core/use-cases/get-price-catalog";
-import {
   GET_THREAD,
   type GetThread,
-} from "../../../../core/use-cases/get-thread";
+} from "../../../../core/use-cases/inbox/get-thread";
 import {
   LIST_INBOX,
   type ListInbox,
-} from "../../../../core/use-cases/list-inbox";
+} from "../../../../core/use-cases/inbox/list-inbox";
+import {
+  GET_PRICE_CATALOG,
+  type GetPriceCatalog,
+  type PriceCatalog,
+} from "../../../../core/use-cases/quotes/get-price-catalog";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { validationError } from "../shared/http-error";

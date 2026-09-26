@@ -1,17 +1,17 @@
-import type { DraftRevision } from "../domain/drafting";
-import { ConflictError, ValidationError } from "../domain/errors";
-import { buildQuote, type QuoteRequestLine } from "../domain/pricing";
-import { buildQuoteBody, quoteVersionOf } from "../domain/quote";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
-import type { DrafterPort } from "../ports/drafter";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { PriceListRepository } from "../ports/price-list-repository";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
-import type { UnitOfWork } from "../ports/unit-of-work";
+import type { DraftRevision } from "../../domain/drafting";
+import { ConflictError, ValidationError } from "../../domain/errors";
+import { buildQuote, type QuoteRequestLine } from "../../domain/pricing";
+import { buildQuoteBody, quoteVersionOf } from "../../domain/quote";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../../ports/draft-revision-repository";
+import type { DrafterPort } from "../../ports/drafter";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { PriceListRepository } from "../../ports/price-list-repository";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
+import type { UnitOfWork } from "../../ports/unit-of-work";
 
 export interface ReviseDeclinedQuoteDeps {
   readonly conversations: ConversationRepository;

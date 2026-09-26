@@ -10,7 +10,7 @@ import type { Clock } from "../../../../core/ports/clock";
 import type { IdGenerator } from "../../../../core/ports/id-generator";
 import type { OrganizationProfileRepository } from "../../../../core/ports/organization-profile-repository";
 import type { TransactionScopedRepositories } from "../../../../core/ports/unit-of-work";
-import { SendApprovedDraft } from "../../../../core/use-cases/send-approved-draft";
+import { SendApprovedDraft } from "../../../../core/use-cases/review/send-approved-draft";
 import { RandomTokenGenerator } from "../../runtime/random-token-generator";
 import { Sha256TokenHasher } from "../../runtime/sha256-token-hasher";
 import {

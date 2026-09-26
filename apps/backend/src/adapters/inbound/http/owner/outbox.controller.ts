@@ -3,7 +3,7 @@ import type { OutboxPage } from "../../../../core/domain/outbox";
 import {
   LIST_OUTBOX,
   type ListOutbox,
-} from "../../../../core/use-cases/list-outbox";
+} from "../../../../core/use-cases/review/list-outbox";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { SessionGuard } from "../shared/session.guard";

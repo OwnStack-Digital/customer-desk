@@ -1,5 +1,5 @@
-import type { PriceList } from "../domain/config";
-import type { PriceListRepository } from "../ports/price-list-repository";
+import type { PriceList } from "../../domain/config";
+import type { PriceListRepository } from "../../ports/price-list-repository";
 
 /** A rule the operator may select. Amounts are not editable here. */
 export interface PriceCatalogRule {

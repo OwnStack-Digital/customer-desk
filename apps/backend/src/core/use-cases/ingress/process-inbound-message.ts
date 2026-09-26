@@ -1,31 +1,31 @@
-import type { DraftRevision } from "../domain/drafting";
+import type { DraftRevision } from "../../domain/drafting";
 import {
   buildFaqBody,
   COMPLAINT_DRAFT_BODY,
   cleanWording,
   compareFactIds,
-} from "../domain/drafting";
-import type { StoredMessage } from "../domain/messaging";
-import { buildQuote } from "../domain/pricing";
+} from "../../domain/drafting";
+import type { StoredMessage } from "../../domain/messaging";
+import { buildQuote } from "../../domain/pricing";
 import type {
   Classification,
   ProcessingResult,
   ProcessingRevision,
   TerminalProcessingStatus,
-} from "../domain/processing";
-import { buildQuoteBody, quoteVersionOf } from "../domain/quote";
-import type { ClassifierPort } from "../ports/classifier";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { DraftRevisionRepository } from "../ports/draft-revision-repository";
-import type { DrafterPort } from "../ports/drafter";
-import type { IdGenerator } from "../ports/id-generator";
-import type { KnowledgeBaseRepository } from "../ports/knowledge-base-repository";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { PriceListRepository } from "../ports/price-list-repository";
-import type { ProcessingRevisionRepository } from "../ports/processing-revision-repository";
-import type { QuoteVersionRepository } from "../ports/quote-version-repository";
+} from "../../domain/processing";
+import { buildQuoteBody, quoteVersionOf } from "../../domain/quote";
+import type { ClassifierPort } from "../../ports/classifier";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { DraftRevisionRepository } from "../../ports/draft-revision-repository";
+import type { DrafterPort } from "../../ports/drafter";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { KnowledgeBaseRepository } from "../../ports/knowledge-base-repository";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { PriceListRepository } from "../../ports/price-list-repository";
+import type { ProcessingRevisionRepository } from "../../ports/processing-revision-repository";
+import type { QuoteVersionRepository } from "../../ports/quote-version-repository";
 
 export interface ProcessInboundMessageDeps {
   readonly messages: MessageRepository;

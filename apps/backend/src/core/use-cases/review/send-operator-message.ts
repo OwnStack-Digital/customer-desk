@@ -1,12 +1,16 @@
-import type { StoredMessage } from "../domain/messaging";
-import { mailDomain, messageTextOf, replySubject } from "../domain/messaging";
-import type { OutboxEntry } from "../domain/outbox";
-import type { Clock } from "../ports/clock";
-import type { ConversationRepository } from "../ports/conversation-repository";
-import type { IdGenerator } from "../ports/id-generator";
-import type { MessageRepository } from "../ports/message-repository";
-import type { OrganizationProfileRepository } from "../ports/organization-profile-repository";
-import type { UnitOfWork } from "../ports/unit-of-work";
+import type { StoredMessage } from "../../domain/messaging";
+import {
+  mailDomain,
+  messageTextOf,
+  replySubject,
+} from "../../domain/messaging";
+import type { OutboxEntry } from "../../domain/outbox";
+import type { Clock } from "../../ports/clock";
+import type { ConversationRepository } from "../../ports/conversation-repository";
+import type { IdGenerator } from "../../ports/id-generator";
+import type { MessageRepository } from "../../ports/message-repository";
+import type { OrganizationProfileRepository } from "../../ports/organization-profile-repository";
+import type { UnitOfWork } from "../../ports/unit-of-work";
 
 export interface SendOperatorMessageDeps {
   readonly conversations: ConversationRepository;

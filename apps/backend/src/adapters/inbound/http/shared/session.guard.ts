@@ -8,7 +8,7 @@ import {
 import {
   AUTHENTICATE_SESSION,
   type AuthenticateSession,
-} from "../../../../core/use-cases/authenticate-session";
+} from "../../../../core/use-cases/auth/authenticate-session";
 import { CONFIG } from "../../../outbound/config-files/config.module";
 import type { ValidatedConfig } from "../../../outbound/config-files/loader";
 import { readCookie, SESSION_COOKIE } from "./cookies";

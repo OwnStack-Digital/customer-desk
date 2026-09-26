@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { InboundEmail } from "../domain/messaging";
-import { InboundValidationError } from "../domain/messaging";
-import { ReceiveInboundEmail } from "./receive-inbound-email";
+import type { InboundEmail } from "../../domain/messaging";
+import { InboundValidationError } from "../../domain/messaging";
 import {
   email,
   FakeMessages,
@@ -11,7 +10,8 @@ import {
   MAILBOX,
   NOW,
   ORG,
-} from "./testing";
+} from "../testing";
+import { ReceiveInboundEmail } from "./receive-inbound-email";
 
 describe("ReceiveInboundEmail", () => {
   it("stores a new email and creates the conversation snapshot", async () => {

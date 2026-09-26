@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ValidationError } from "../domain/errors";
+import { ValidationError } from "../../domain/errors";
+import { email, FakeUnitOfWork, harness, NOW, ORG } from "../testing";
 import { SendOperatorMessage } from "./send-operator-message";
-import { email, FakeUnitOfWork, harness, NOW, ORG } from "./testing";
 
 const OPERATOR = "owner@harbourandpine.example";
 
