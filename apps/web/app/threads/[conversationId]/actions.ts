@@ -27,9 +27,11 @@ async function callApi(
     redirect("/login");
   }
   try {
+    const headers = new Headers(init.headers);
+    headers.set("cookie", `bos_session=${session}`);
     await bosApi(path, {
       ...init,
-      headers: { cookie: `bos_session=${session}` },
+      headers,
     });
   } catch (error) {
     if (error instanceof BosApiError && error.status === 401) {
