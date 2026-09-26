@@ -3,7 +3,6 @@ import type {
   TransactionScopedRepositories,
   UnitOfWork,
 } from "../../../core/ports/unit-of-work";
-import { DrizzleAuditEventRepository } from "./audit-event-repository";
 import type {
   DbClient,
   DbDialect,
@@ -11,10 +10,11 @@ import type {
   PostgresDb,
   SqliteDb,
 } from "./client";
-import { DrizzleDraftRevisionRepository } from "./draft-revision-repository";
-import { DrizzleMessageRepository } from "./message-repository";
-import { DrizzleOutboxRepository } from "./outbox-repository";
-import { DrizzleQuoteVersionRepository } from "./quote-version-repository";
+import { DrizzleAuditEventRepository } from "./repositories/delivery/audit-event-repository";
+import { DrizzleOutboxRepository } from "./repositories/delivery/outbox-repository";
+import { DrizzleDraftRevisionRepository } from "./repositories/messaging/draft-revision-repository";
+import { DrizzleMessageRepository } from "./repositories/messaging/message-repository";
+import { DrizzleQuoteVersionRepository } from "./repositories/quotes/quote-version-repository";
 
 /**
  * A `PersistenceClient` whose `open()` returns the transaction handle

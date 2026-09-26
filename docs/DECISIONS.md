@@ -83,6 +83,8 @@ Do **not** create one Nest module per use case, lane, or entity. Controllers cal
 - Inbound email (connector credential)  
 - Public quote (token)  
 
+Those groups are folders under `adapters/inbound/http/` (`owner/`, `ingress/`, `public-quotes/`), plus `auth/` and `shared/`. They are not extra Nest modules. Use-case factories are provider arrays in `infrastructure/composition/providers/` and are registered only by `ApiModule`. `PersistenceModule` binds the Drizzle client, repositories, and `UnitOfWork`. Clock, id, and hasher adapters live in `adapters/outbound/runtime/` and are not a module.
+
 Delivery trigger stays deferred until pilot (or a tiny internal controller later).
 
 ---

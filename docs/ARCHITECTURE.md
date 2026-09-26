@@ -317,13 +317,27 @@ apps/
         domain/                 # few types, states, pure pricing
         ports/                  # repositories and external capabilities
       adapters/
-        inbound/http/           # BOS API controllers
+        inbound/http/           # BOS API; one Nest module, grouped by trust boundary
+          api.module.ts         # controllers, guards, filter; spreads composition providers
+          shared/               # cookies, session guard, error mapping
+          auth/
+          owner/                # inbox, thread, drafts, send, outbox
+          ingress/
+          public-quotes/
+          acceptance/           # cross-boundary HTTP specs
         outbound/
-          persistence/          # database repositories
+          persistence/          # Drizzle client, schema, repositories, PersistenceModule
+            schema/             # pg/sqlite pairs, split by record group
+            repositories/       # auth, messaging, delivery, quotes
+            testing/
           config-files/         # file-backed config repositories
           email/                # outbox now; provider later
           ai/                   # classifier/drafter
-      infrastructure/          # server, database setup, composition root
+          runtime/              # clock, ids, hashers; not a Nest module
+      infrastructure/
+        composition/            # owner seeder + use-case provider arrays
+          providers/
+        database/
       main.ts
   web/                          # Next.js App Router UI (SSR/RSC)
     app/                        # owner screens + public quote route
@@ -333,7 +347,7 @@ docs/PRODUCT.md
 docs/ARCHITECTURE.md
 ```
 
-Use cases are the input ports; do not create duplicate `ports/input` interfaces. `apps/backend` core imports nothing from adapters, infrastructure, or `apps/web`. `apps/web` must not import backend source or open the operational DB; optional Next route handlers are transport-only (cookie/BFF), not a second API. Keep use cases flat until their number—not anticipated future complexity—requires grouping. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
+Use cases are the input ports; do not create duplicate `ports/input` interfaces. `apps/backend` core imports nothing from adapters, infrastructure, or `apps/web`. `apps/web` must not import backend source or open the operational DB; optional Next route handlers are transport-only (cookie/BFF), not a second API. Keep use cases flat until their number—not anticipated future complexity—requires grouping. Nest stays the six modules in [`DECISIONS.md`](./DECISIONS.md): folder groups are not modules. Repository bindings live in `PersistenceModule`; use-case factories live in `infrastructure/composition/providers` and are registered by `ApiModule`. The pilot delivery trigger can be added as an inbound adapter when implemented; it does not change the core layout.
 
 ## Hard rules
 

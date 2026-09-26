@@ -23,9 +23,9 @@ export function migrationsOutDir(dialect: MigrationDialect): string {
 
 const dialect = migrationDialect(process.env);
 
-const schema = resolve(
-  backendRoot,
-  "src/adapters/outbound/persistence/schema.ts",
+const schema = ["auth.ts", "messaging.ts", "delivery.ts", "quotes.ts"].map(
+  (file) =>
+    resolve(backendRoot, "src/adapters/outbound/persistence/schema", file),
 );
 
 export default defineConfig(
