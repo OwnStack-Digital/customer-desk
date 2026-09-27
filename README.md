@@ -53,8 +53,7 @@ Message-IDs in the same mailbox.
 ## Processing
 
 Every inbound message is processed after its receipt commits: the
-`AI_ADAPTER=fake` classifier (deterministic, first match; anything else
-fails boot) assigns a lane, and one `processing_revisions` row records
+classifier assigns a lane, and one `processing_revisions` row records
 each attempt (`pending → processing → ready | needs_human | failed`).
 Complaints are urgent and always `needs_human`; low confidence and the
 `other` lane go to a human; noise parks as `ready` with no draft. The
@@ -62,6 +61,15 @@ owner inbox filters are `GET /inbox?filter=all|needs_human|complaints`
 (invalid filter → 422), and threads show lane, status, and summary.
 `POST /messages/:messageId/retry-processing` (session required) appends a
 new revision and is a no-op while one is already `processing`.
+
+`AI_ADAPTER=fake` (the default, also used when unset) is deterministic and
+makes no network call. `AI_ADAPTER=vercel` uses the Vercel AI SDK. An
+OpenAI key (`OPENAI_API_KEY`, or an `sk-` value in `AI_GATEWAY_API_KEY`)
+calls OpenAI directly. Any other key uses the Vercel AI Gateway. It still
+cannot set a price or invent a business fact: quote totals come from the
+price list, FAQ bodies come from knowledge-block ids, and anything
+commercial still needs approval. Set `AI_MODEL` to `openai/gpt-4.1-mini`
+(or another Gateway id). Anything other than `fake` or `vercel` fails boot.
 
 ## Run
 
@@ -110,7 +118,10 @@ See `.env.example` for the full list with safe defaults. Highlights:
 | `CONFIG_DIR` | backend | default `<repo>/config` |
 | `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` | backend | seed owner, created only when no operator credentials exist |
 | `BOS_INGRESS_KEY` | backend | bearer token for `POST /inbound/emails` |
-| `AI_ADAPTER` | backend | must be `fake` (or unset); anything else fails boot |
+| `AI_ADAPTER` | backend | `fake` (default) or `vercel`; anything else fails boot |
+| `AI_MODEL` | backend | Gateway model id, required when `AI_ADAPTER=vercel` |
+| `AI_GATEWAY_API_KEY` | backend | Gateway key, or an OpenAI `sk-` key, when `AI_ADAPTER=vercel` |
+| `OPENAI_API_KEY` | backend | optional OpenAI key; used instead of a gateway key |
 | `PUBLIC_APP_URL` | backend | quote links |
 | `COOKIE_SECURE` | backend | `true` outside local HTTP |
 | `BOS_API_URL` | web | server-only base URL of the BOS API |

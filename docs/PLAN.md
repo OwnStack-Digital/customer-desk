@@ -27,7 +27,7 @@ Mark a task `[x]` in this file when it is done. Do not add a second backlog.
 | IDs | ULID strings from `IdGenerator`. Tests inject the generator. No database-generated ids. |
 | Lint | Biome only. |
 | Web → API | `BOS_API_URL` HTTP only (dev default `http://127.0.0.1:3001`). Next copies `Set-Cookie` on login/logout. |
-| LLM | No vendor in the demonstrator. `AI_ADAPTER=fake` only. |
+| LLM | Default remains `AI_ADAPTER=fake` (no network). Live adapter is the Vercel AI SDK (`ai`) via the AI Gateway, selected by `AI_ADAPTER=vercel`. Prices and facts stay in code. |
 | Config format | JSON under `config/`. Invalid file fails boot. No YAML, no empty fallback. |
 | Quantities | Positive integers only. |
 | Money math | Integer minor units. Round half up, once per line. Tax total is the sum of rounded line taxes, not a second rounding of the subtotal. |
@@ -44,6 +44,11 @@ Mark a task `[x]` in this file when it is done. Do not add a second backlog.
 | `CONFIG_DIR` | backend | default `<repo>/config` |
 | `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` | backend | seed only |
 | `BOS_INGRESS_KEY` | backend | bearer token for `POST /inbound/emails` |
+| `AI_ADAPTER` | backend | `fake` (default) or `vercel`. Anything else fails boot. |
+| `AI_MODEL` | backend | Gateway id `creator/model`, required when `AI_ADAPTER=vercel` |
+| `AI_GATEWAY_API_KEY` | backend | Gateway key, or an OpenAI `sk-` key, when `AI_ADAPTER=vercel`; never commit it |
+| `OPENAI_API_KEY` | backend | optional; an OpenAI key used instead of the gateway key |
+| `AI_TIMEOUT_MS` | backend | optional, default 20000, between 1000 and 120000 |
 | `PUBLIC_APP_URL` | backend | quote links |
 | `COOKIE_SECURE` | backend | `true` outside local HTTP |
 | `PORT` | backend | default `3001` |
@@ -405,7 +410,7 @@ Start these only after the demonstrator gate is checked off in this file.
 - [ ] **8.1** Inbound connector maps one provider to `InboundEmail` and posts to the ingress route. MIME parsing stays in the connector.
 - [ ] **8.2** `DeliverQueuedEmail` use case: `queued → sending → sent | failed | uncertain`. `sent` means provider acceptance. Uncertain is not retried blindly.
 - [ ] **8.3** Delivery worker calls that use case. It is not a Nest module per entity and it does not import repositories except through the use case.
-- [ ] **8.4** Record the chosen provider and LLM vendor in `DECISIONS.md` before adding either real adapter. LLM remains behind the existing ports.
+- [ ] **8.4** Record the chosen email provider in `DECISIONS.md` before adding that adapter. The LLM vendor is recorded: Vercel AI SDK (`ai`) via the AI Gateway, behind the existing classifier and drafter ports, selected by `AI_ADAPTER=vercel` (default remains `fake`). This box stays open until the mailbox provider adapter exists.
 
 ### Slice 9 — Operability
 
@@ -420,4 +425,4 @@ Do not call the product pilot-ready until a real mailbox has passed mixed mail, 
 
 ## Explicit non-tasks
 
-Config admin UI · auto-acknowledgements · attachment OCR · manual thread merge · multi-org · extra roles · payments · scheduling · workflow engine · WhatsApp · PDF quotes · shared `packages/domain` · MySQL · Bun as the Nest production runtime · a live LLM in slices 0–7.
+Config admin UI · auto-acknowledgements · attachment OCR · manual thread merge · multi-org · extra roles · payments · scheduling · workflow engine · WhatsApp · PDF quotes · shared `packages/domain` · MySQL · Bun as the Nest production runtime · requiring a live LLM to complete slices 0–7.

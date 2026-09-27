@@ -16,7 +16,7 @@ Companion to [`ARCHITECTURE.md`](./ARCHITECTURE.md). Architecture = boundaries a
 | UI → domain | Server-side calls into **BOS API**; browser avoids a large public REST surface |
 | ORM | **Drizzle** · **PostgreSQL** primary · **SQLite** tests/dev only · **MySQL** deferred |
 | Auth (demonstrator) | Single owner user + HTTP-only session cookie on the API |
-| AI (demonstrator) | Port + **deterministic fakes** first; real LLM adapter swappable |
+| AI | Ports + **deterministic fakes** by default. Live adapter: **Vercel AI SDK** via the AI Gateway (`AI_ADAPTER=vercel`) |
 | Email delivery (demonstrator) | Outbox rows only; sender port is recording/disabled |
 
 ---
@@ -208,11 +208,13 @@ CSRF: prefer same-site cookie strategy + Server Actions posting to Next origin; 
 
 | Port | Demonstrator | Pilot |
 | --- | --- | --- |
-| `ClassifierPort` / `DrafterPort` | Deterministic **fake** (fixture keywords / subject rules) | Real LLM adapter behind same ports |
-| `EmailSenderPort` | Disabled or recording fake | Provider adapter + worker |
+| `ClassifierPort` / `DrafterPort` | Deterministic **fake** (fixture keywords / subject rules). Default `AI_ADAPTER=fake`. | **Vercel AI SDK** (`ai` package), same ports. `AI_ADAPTER=vercel` requires `AI_MODEL` (for example `openai/gpt-4.1-mini`) and a key. An OpenAI key (`OPENAI_API_KEY`, or `sk-` in `AI_GATEWAY_API_KEY`) uses `@ai-sdk/openai`. Any other key uses the **Vercel AI Gateway**. Missing the model or the key fails boot. |
+| `EmailSenderPort` | Disabled or recording fake | Provider adapter + worker. Vendor not chosen yet. |
 | File config | Required at startup; invalid → refuse boot | Same until admin API exists |
 
 Fake classifier must cover every lane and failure path used in acceptance fixtures so UI and use cases do not depend on a live model.
+
+The live adapter may classify and may write a greeting and closing only. It does not set prices, supply knowledge-block text, or permit a send. Model output is untrusted: unknown fact ids are dropped, a quote line is priced only when its label matches a rule, complaint words still win, and a reply to a stored outbound quote stays on the quote-reply lane unless it is a complaint. A classifier failure is a `failed` processing revision. Drafter failure falls back to the constant wording so an already-classified draft still exists.
 
 ---
 
@@ -310,7 +312,7 @@ These were the open items. They are decided in [`PLAN.md`](./PLAN.md); do not re
 | IDs | **ULID** strings from `IdGenerator`. |
 | Lint/format | **Biome** only. |
 | Web → API | Server-side HTTP to `BOS_API_URL` only. No in-process core import. |
-| LLM vendor | **None in the demonstrator.** Fakes only. Record a vendor here when fakes are replaced. |
+| LLM vendor | **Vercel AI SDK** (`ai`). OpenAI keys use `@ai-sdk/openai`; other keys use the **Vercel AI Gateway**. Default remains the fake. `AI_ADAPTER=vercel` opts in. Email provider is still unchosen. |
 
 ---
 
