@@ -239,7 +239,7 @@ export class FakeClassifier implements ClassifierPort {
       }
       lines.push(line);
     }
-    return lines;
+    return preferServiceLines(this.priceList.getPriceList(), haystack, lines);
   }
 
   /** Fact ids whose knowledge-block tags match the present FAQ words. */
@@ -264,6 +264,54 @@ export class FakeClassifier implements ClassifierPort {
  * trimmed subject when present, else the first sentence of the text body
  * (up to 120 characters). The customer's ask, verbatim — never invented.
  */
+const BOND_WORDS = /\bbond\b|end of lease|end-of-lease|\bvacate\b/;
+const RECURRING_WORDS =
+  /\bweekly\b|\bfortnightly\b|\brecurring\b|\bevery week\b/;
+
+/**
+ * Room words match the occupied rule. A bond or vacate email should use
+ * the bond rule for that room instead. A weekly email should use the
+ * recurring rule, so the first visit is priced separately in code.
+ */
+function preferServiceLines(
+  priceList: { readonly rules: readonly PriceRule[] },
+  haystack: string,
+  lines: Array<{ ruleId: string; label: string; quantity?: number }>,
+): Array<{ ruleId: string; label: string; quantity?: number }> {
+  const bond = BOND_WORDS.test(haystack);
+  const recurring = !bond && RECURRING_WORDS.test(haystack);
+  return lines.map((line) => {
+    const rule = priceList.rules.find((item) => item.id === line.ruleId);
+    if (!rule) {
+      return line;
+    }
+    if (bond && rule.id.startsWith("occupied_")) {
+      const bondId = `bond_${rule.id.slice("occupied_".length).replace(/_recurring$/, "")}`;
+      const bondRule = priceList.rules.find((item) => item.id === bondId);
+      if (bondRule) {
+        return {
+          ruleId: bondRule.id,
+          label: bondRule.label,
+          ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
+        };
+      }
+    }
+    if (recurring && rule.initialRuleId === undefined) {
+      const follow = priceList.rules.find(
+        (item) => item.initialRuleId === rule.id,
+      );
+      if (follow) {
+        return {
+          ruleId: follow.id,
+          label: follow.label,
+          ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
+        };
+      }
+    }
+    return line;
+  });
+}
+
 function requestOf(ask: { subject?: string; text?: string }): string {
   const subject = ask.subject?.trim();
   if (subject !== undefined && subject !== "") {

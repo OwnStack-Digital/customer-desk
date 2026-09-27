@@ -4,9 +4,12 @@ import type { PriceListRepository } from "../../ports/price-list-repository";
 /** A rule the operator may select. Amounts are not editable here. */
 export interface PriceCatalogRule {
   readonly id: string;
+  readonly group?: string;
   readonly label: string;
   readonly kind: PriceList["rules"][number]["kind"];
   readonly unit?: string;
+  /** Later visits use this rule. The first visit uses this other rule. */
+  readonly initialRuleId?: string;
 }
 
 export interface PriceCatalog {
@@ -31,7 +34,9 @@ export class GetPriceCatalog {
         id: rule.id,
         label: rule.label,
         kind: rule.kind,
+        ...(rule.group ? { group: rule.group } : {}),
         ...(rule.unit ? { unit: rule.unit } : {}),
+        ...(rule.initialRuleId ? { initialRuleId: rule.initialRuleId } : {}),
       })),
     };
   }

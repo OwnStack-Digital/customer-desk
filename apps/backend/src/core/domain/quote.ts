@@ -56,6 +56,8 @@ export interface PricedQuoteLineSnapshot {
   readonly name: string;
   readonly quantity?: number;
   readonly amountMinor: number;
+  /** False when the line is a later-visit rate, not part of the total. */
+  readonly includedInTotal?: boolean;
 }
 
 /**
@@ -78,6 +80,7 @@ export interface PublicQuote {
     readonly name: string;
     readonly quantity?: number;
     readonly amountMinor: number;
+    readonly includedInTotal?: boolean;
   }>;
   readonly assumptions: readonly string[];
   readonly subtotalMinor: number;
@@ -144,16 +147,43 @@ export interface QuoteBodyInput {
  * digits and a currency by design — only the drafter's optional wrapper
  * wording obeys the drop rule; the substance is rendered here, in code.
  */
+function lineText(
+  currency: string,
+  line: {
+    readonly name: string;
+    readonly quantity?: number;
+    readonly amountMinor: number;
+  },
+): string {
+  const quantity = line.quantity !== undefined ? ` × ${line.quantity}` : "";
+  return `${line.name}${quantity}: ${formatMinor(currency, line.amountMinor)}`;
+}
+
 export function buildQuoteBody(input: QuoteBodyInput): string {
-  const lines = input.quote.lines.map((line) => {
-    const quantity = line.quantity !== undefined ? ` × ${line.quantity}` : "";
-    return `${line.name}${quantity}: ${formatMinor(input.quote.currency, line.amountMinor)}`;
-  });
+  const payable = input.quote.lines.filter(
+    (line) => line.includedInTotal !== false,
+  );
+  const following = input.quote.lines.filter(
+    (line) => line.includedInTotal === false,
+  );
   const parts: string[] = [];
   if (input.greeting) {
     parts.push(input.greeting);
   }
-  parts.push(["Here is your quote:", ...lines].join("\n"));
+  parts.push(
+    [
+      "Here is your quote:",
+      ...payable.map((line) => lineText(input.quote.currency, line)),
+    ].join("\n"),
+  );
+  if (following.length > 0) {
+    parts.push(
+      [
+        "Each following visit is not included in the total:",
+        ...following.map((line) => lineText(input.quote.currency, line)),
+      ].join("\n"),
+    );
+  }
   if (input.quote.assumptions.length > 0) {
     parts.push(
       ["Assumptions:", ...input.quote.assumptions.map((a) => `- ${a}`)].join(

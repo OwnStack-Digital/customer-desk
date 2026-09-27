@@ -66,20 +66,24 @@ export class ReviseDeclinedQuote {
       organizationId,
       conversationId,
     );
-    if (current?.status !== "declined") {
+    if (current?.status !== "declined" && current?.status !== "prepared") {
       throw new ConflictError(
-        "A new quote can be prepared only after the current quote was declined.",
+        "Line items can be updated only while the quote is prepared, or after it was declined.",
       );
     }
     const latestDraft = await this.deps.drafts.findLatestByConversation(
       organizationId,
       conversationId,
     );
+    if (latestDraft?.status === "approved") {
+      throw new ConflictError(
+        "Discard or send the current draft before preparing a new quote.",
+      );
+    }
     if (
-      latestDraft &&
-      (latestDraft.status === "approved" ||
-        (latestDraft.status === "proposed" &&
-          latestDraft.origin === "operator"))
+      current.status === "declined" &&
+      latestDraft?.status === "proposed" &&
+      latestDraft.origin === "operator"
     ) {
       throw new ConflictError(
         "Discard or send the current draft before preparing a new quote.",
@@ -121,6 +125,16 @@ export class ReviseDeclinedQuote {
       updatedAt: now,
     };
     await this.deps.unitOfWork.run(async (repos) => {
+      if (current.status === "prepared") {
+        await repos.quotes.supersedePrepared(
+          organizationId,
+          current.id,
+          now,
+        );
+        if (latestDraft?.status === "proposed") {
+          await repos.drafts.supersede(organizationId, latestDraft.id);
+        }
+      }
       await repos.drafts.supersedeProcessingProposed(
         organizationId,
         conversationId,

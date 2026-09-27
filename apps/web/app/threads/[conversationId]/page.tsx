@@ -166,14 +166,47 @@ function TimelineRow({ entry }: { entry: ThreadTimelineEntry }) {
   );
 }
 
+function catalogGroups(catalog: PriceCatalog): Array<{
+  name: string;
+  rules: PriceCatalog["rules"];
+}> {
+  const names: string[] = [];
+  for (const rule of catalog.rules) {
+    const name = rule.group ?? "Other";
+    if (!names.includes(name)) {
+      names.push(name);
+    }
+  }
+  return names.map((name) => ({
+    name,
+    rules: catalog.rules.filter((rule) => (rule.group ?? "Other") === name),
+  }));
+}
+
+function isExpandedFirstVisit(
+  ruleId: string,
+  lines: NonNullable<Thread["quote"]>["lines"],
+  rules: PriceCatalog["rules"],
+): boolean {
+  return rules.some(
+    (other) =>
+      other.initialRuleId === ruleId &&
+      lines.some(
+        (line) => line.ruleId === other.id && line.includedInTotal === false,
+      ),
+  );
+}
+
 function ReviseQuote({
   conversationId,
   catalog,
   previous,
+  prepared,
 }: {
   conversationId: string;
   catalog: PriceCatalog;
   previous: Thread["quote"];
+  prepared: boolean;
 }) {
   return (
     <section
@@ -187,62 +220,84 @@ function ReviseQuote({
       }}
     >
       <h2 style={{ fontSize: "0.95rem", margin: "0 0 0.35rem" }}>
-        Update quote
+        {prepared ? "Review line items" : "Update quote"}
       </h2>
       <p style={{ margin: "0 0 0.75rem", color: "#555" }}>
-        Prepares a new draft from the price list. The declined quote stays
-        declined. Approve and send the draft to issue a new link. Prices cannot
-        be typed in — only the items and quantities.
+        {prepared
+          ? "Change the items and quantities. The email is rewritten from these lines. Amounts cannot be typed in."
+          : "Prepares a new draft from the price list. The declined quote stays declined. Approve and send the draft to issue a new link. Prices cannot be typed in — only the items and quantities."}
       </p>
       <form action={reviseDeclinedQuote}>
         <input type="hidden" name="conversationId" value={conversationId} />
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {catalog.rules.map((rule) => {
-            const prior = previous?.lines.find(
-              (line) => line.ruleId === rule.id,
-            );
-            return (
-              <li
-                key={rule.id}
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  margin: "0.4rem 0",
-                }}
-              >
-                <label style={{ display: "flex", gap: "0.35rem" }}>
-                  <input
-                    type="checkbox"
-                    name={`include_${rule.id}`}
-                    defaultChecked={prior !== undefined}
-                  />
-                  {rule.label}
-                  {rule.unit ? ` (${rule.unit}s)` : ""}
-                </label>
-                {rule.kind === "per_unit" ? (
-                  <input
-                    type="number"
-                    name={`quantity_${rule.id}`}
-                    min={1}
-                    step={1}
-                    defaultValue={prior?.quantity ?? 1}
-                    aria-label={`${rule.label} quantity`}
-                    style={{
-                      width: "4.5rem",
-                      padding: "0.25rem",
-                      borderRadius: "6px",
-                      border: "1px solid #e2e2e2",
-                    }}
-                  />
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        <div>
+          {catalogGroups(catalog).map((group) => (
+            <section key={group.name} style={{ margin: "0.6rem 0" }}>
+              <h3 style={{ fontSize: "0.85rem", margin: "0 0 0.25rem" }}>
+                {group.name}
+              </h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {group.rules.map((rule) => {
+                  const prior = previous?.lines.find(
+                    (line) => line.ruleId === rule.id,
+                  );
+                  const checked =
+                    prior !== undefined &&
+                    !isExpandedFirstVisit(
+                      rule.id,
+                      previous?.lines ?? [],
+                      catalog.rules,
+                    );
+                  return (
+                    <li
+                      key={rule.id}
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        margin: "0.4rem 0",
+                      }}
+                    >
+                      <label style={{ display: "flex", gap: "0.35rem" }}>
+                        <input
+                          type="checkbox"
+                          name={`include_${rule.id}`}
+                          defaultChecked={checked}
+                        />
+                        {rule.label}
+                        {rule.unit ? ` (${rule.unit}s)` : ""}
+                      </label>
+                      {rule.initialRuleId ? (
+                        <span style={{ color: "#555" }}>
+                          First visit uses the one-time rate. Later visits are
+                          not added to the total.
+                        </span>
+                      ) : null}
+                      {rule.kind === "per_unit" ? (
+                        <input
+                          type="number"
+                          name={`quantity_${rule.id}`}
+                          min={1}
+                          step={1}
+                          defaultValue={prior?.quantity ?? 1}
+                          aria-label={`${rule.label} quantity`}
+                          style={{
+                            width: "4.5rem",
+                            padding: "0.25rem",
+                            borderRadius: "6px",
+                            border: "1px solid #e2e2e2",
+                          }}
+                        />
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
         <button type="submit" style={{ ...buttonStyle, marginTop: "0.75rem" }}>
-          Prepare updated quote
+          {prepared ? "Update draft from these lines" : "Prepare updated quote"}
         </button>
       </form>
     </section>
@@ -341,13 +396,14 @@ export default async function ThreadPage({
   const { conversationId } = await params;
   const { error: actionError } = await searchParams;
   const result = await loadThread(conversationId);
-  const declinedThread =
+  const revisableThread =
     typeof result !== "string" &&
-    result.quote?.status === "declined" &&
+    (result.quote?.status === "declined" ||
+      result.quote?.status === "prepared") &&
     result.draft?.status !== "approved"
       ? result
       : null;
-  const catalog = declinedThread ? await loadCatalog() : null;
+  const catalog = revisableThread ? await loadCatalog() : null;
   if (result === "login") {
     redirect("/login");
   }
@@ -540,26 +596,49 @@ export default async function ThreadPage({
                   {quote.decision ? ` · ${quote.decision}` : ""}
                 </p>
               ) : null}
-              {quote.lines.length > 0 ? (
+              {quote.lines.some((line) => line.includedInTotal !== false) ? (
                 <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
-                  {quote.lines.map((line) => (
-                    <li
-                      key={`${quote.quoteVersionId}-${line.ruleId}-${line.quantity ?? 1}`}
-                    >
-                      {line.name}
-                      {line.quantity ? ` × ${line.quantity}` : ""}:{" "}
-                      {formatMinor(quote.currency, line.amountMinor)}
-                    </li>
-                  ))}
+                  {quote.lines
+                    .filter((line) => line.includedInTotal !== false)
+                    .map((line) => (
+                      <li
+                        key={`${quote.quoteVersionId}-${line.ruleId}-${line.quantity ?? 1}`}
+                      >
+                        {line.name}
+                        {line.quantity ? ` × ${line.quantity}` : ""}:{" "}
+                        {formatMinor(quote.currency, line.amountMinor)}
+                      </li>
+                    ))}
                 </ul>
+              ) : null}
+              {quote.lines.some((line) => line.includedInTotal === false) ? (
+                <>
+                  <p style={{ margin: "0.5rem 0 0", color: "#555" }}>
+                    Each following visit, not included in the total:
+                  </p>
+                  <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1.1rem" }}>
+                    {quote.lines
+                      .filter((line) => line.includedInTotal === false)
+                      .map((line) => (
+                        <li
+                          key={`${quote.quoteVersionId}-later-${line.ruleId}`}
+                        >
+                          {line.name}
+                          {line.quantity ? ` × ${line.quantity}` : ""}:{" "}
+                          {formatMinor(quote.currency, line.amountMinor)}
+                        </li>
+                      ))}
+                  </ul>
+                </>
               ) : null}
             </section>
           ))}
-          {declinedThread && catalog ? (
+          {revisableThread && catalog ? (
             <ReviseQuote
               conversationId={conversationId}
               catalog={catalog}
-              previous={declinedThread.quote}
+              previous={revisableThread.quote}
+              prepared={revisableThread.quote?.status === "prepared"}
             />
           ) : null}
           {result.quoteReply ? (

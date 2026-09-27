@@ -216,6 +216,8 @@ Fake classifier must cover every lane and failure path used in acceptance fixtur
 
 The live adapter may classify and may write a greeting and closing only. It does not set prices, supply knowledge-block text, or permit a send. Model output is untrusted: unknown fact ids are dropped, a quote line is priced only when its label matches a rule, complaint words still win, and a reply to a stored outbound quote stays on the quote-reply lane unless it is a complaint. A classifier failure is a `failed` processing revision. Drafter failure falls back to the constant wording so an already-classified draft still exists.
 
+A recurring clean prices the first visit from `initialRuleId` and keeps the later-visit rate out of the total. The owner reviews those structured line items; the email is rendered from the recalculated snapshot. A PDF quote is not built yet. When it is, it must use that same snapshot, not free-form body text.
+
 ---
 
 ## 8. API surface (sketch to freeze in planning)

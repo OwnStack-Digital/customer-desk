@@ -110,6 +110,8 @@ const SYSTEM = [
   "Service notes may repeat only details the email itself states. Leave supplied and missing empty when it does not.",
   "Summary is one short internal sentence for the owner. No prices.",
   "Every field is required. Use null when a slot does not apply.",
+  "Bond, end-of-lease, or vacate work uses only bond rules. A home where people are living uses occupied rules. Commercial or office work uses commercial rules, with quantity as hours.",
+  "An ongoing clean uses the recurring rule for that room or hour. Do not also select its one-time rule.",
 ].join(" ");
 
 /** Same complaint words as the fake classifier. Phrases match as substrings;

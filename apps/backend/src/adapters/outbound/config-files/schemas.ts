@@ -60,6 +60,7 @@ export const knowledgeBaseSchema = z.strictObject({
 
 export const priceRuleSchema = z.strictObject({
   id: nonEmpty,
+  group: nonEmpty.optional(),
   kind: z.enum(["fixed", "per_unit"]),
   label: nonEmpty,
   amountMinor: positiveInt,
@@ -67,6 +68,7 @@ export const priceRuleSchema = z.strictObject({
   unit: nonEmpty.optional(),
   defaultQuantity: positiveInt.optional(),
   minimumChargeMinor: positiveInt.optional(),
+  initialRuleId: nonEmpty.optional(),
 });
 
 export const priceListSchema = z.strictObject({
@@ -79,5 +81,22 @@ export const priceListSchema = z.strictObject({
     .min(1)
     .refine((rules) => new Set(rules.map((r) => r.id)).size === rules.length, {
       message: "price rule ids must be unique",
-    }),
+    })
+    .refine(
+      (rules) =>
+        rules.every((rule) => {
+          if (!rule.initialRuleId) {
+            return true;
+          }
+          if (rule.initialRuleId === rule.id) {
+            return false;
+          }
+          const initial = rules.find((item) => item.id === rule.initialRuleId);
+          return initial !== undefined && initial.initialRuleId === undefined;
+        }),
+      {
+        message:
+          "initialRuleId must name another price rule that is not itself a follow-on rate",
+      },
+    ),
 });

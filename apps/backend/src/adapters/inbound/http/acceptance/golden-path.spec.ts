@@ -302,7 +302,7 @@ describe("demonstrator golden path (gate items 2-7)", () => {
     };
     const priced = buildQuote(priceList(), {
       lines: [
-        { ruleId: "regular_clean", label: "Regular clean", quantity: 1 },
+        { ruleId: "occupied_bedroom", label: "Bedroom clean", quantity: 1 },
         { ruleId: "oven_clean", label: "Oven clean" },
       ],
     });
@@ -310,8 +310,6 @@ describe("demonstrator golden path (gate items 2-7)", () => {
       throw new Error(`expected a priceable quote, got: ${priced.kind}`);
     }
     expect(quoteDraft.totalMinor).toBe(priced.totalMinor);
-    // Assumptions are visible on the draft (here: the minimum charge).
-    expect(priced.assumptions.length).toBeGreaterThan(0);
     expect(quoteDraft.assumptions).toEqual([...priced.assumptions]);
   });
 

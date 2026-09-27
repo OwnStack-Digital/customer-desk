@@ -217,9 +217,27 @@ describe("loadConfig (fails closed)", () => {
     const config = loadConfig(repoConfigDir);
     expect(config.organization.name).toBe("Harbour & Pine Cleaning");
     expect(config.priceList.rules.map((rule) => rule.id)).toEqual([
-      "regular_clean",
+      "occupied_bedroom",
+      "occupied_bathroom",
+      "occupied_kitchen",
+      "occupied_living",
+      "occupied_bedroom_recurring",
+      "occupied_bathroom_recurring",
+      "occupied_kitchen_recurring",
+      "occupied_living_recurring",
+      "bond_bedroom",
+      "bond_bathroom",
+      "bond_kitchen",
+      "bond_living",
+      "commercial_clean",
+      "commercial_clean_recurring",
       "oven_clean",
     ]);
+    expect(
+      config.priceList.rules.find(
+        (rule) => rule.id === "occupied_bedroom_recurring",
+      )?.initialRuleId,
+    ).toBe("occupied_bedroom");
   });
 
   it("returns a frozen, read-only configuration", () => {

@@ -470,6 +470,7 @@ function parseLines(
     name: String(line.name),
     ...(line.quantity !== undefined ? { quantity: Number(line.quantity) } : {}),
     amountMinor: Number(line.amountMinor),
+    ...(line.includedInTotal === false ? { includedInTotal: false } : {}),
   }));
 }
 

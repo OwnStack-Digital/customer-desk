@@ -30,6 +30,8 @@ export interface PricedQuoteLine {
   readonly name: string;
   readonly quantity?: number;
   readonly amountMinor: number;
+  /** False for a later-visit rate. Omitted means the line is in the total. */
+  readonly includedInTotal?: boolean;
 }
 
 /** The priced snapshot: what a `prepared` quote version persists verbatim. */
@@ -76,74 +78,140 @@ export function buildQuote(
   const lines: PricedQuoteLine[] = [];
   const reasons: string[] = [];
 
+  const coveredFirstVisits = new Set(
+    request.lines.flatMap((requested) => {
+      const rule = matchRule(priceList, requested);
+      return rule?.initialRuleId ? [rule.initialRuleId] : [];
+    }),
+  );
+
   for (const requested of request.lines) {
     const rule = matchRule(priceList, requested);
     if (!rule) {
       reasons.push(`No price rule matches "${requested.label}".`);
       continue;
     }
-    let quantity: number | undefined;
-    let base: number;
-    if (rule.kind === "per_unit") {
-      const resolved = requested.quantity ?? rule.defaultQuantity;
-      if (requested.quantity === undefined && resolved !== undefined) {
-        // A configured default is recorded as an assumption — distinct
-        // from a customer-supplied quantity, which is never listed.
+    // A recurring request already prices its first visit. Do not also
+    // price that same first-visit rule as a second job.
+    if (!rule.initialRuleId && coveredFirstVisits.has(rule.id)) {
+      continue;
+    }
+    if (rule.initialRuleId) {
+      const initial = priceList.rules.find(
+        (item) => item.id === rule.initialRuleId,
+      );
+      if (!initial) {
+        reasons.push(`No first-visit price rule for "${rule.label}".`);
+        continue;
+      }
+      const first = priceOne(initial, requested);
+      const following = priceOne(rule, requested);
+      if (first.kind === "unpriceable") {
+        reasons.push(first.reason);
+      }
+      if (following.kind === "unpriceable") {
+        reasons.push(following.reason);
+      }
+      if (first.kind === "priceable" && following.kind === "priceable") {
+        lines.push(first.line);
+        lines.push({ ...following.line, includedInTotal: false });
         assumptions.push(
-          `Assumed quantity ${resolved} ${rule.unit ?? "(unit)"}(s) for "${rule.label}".`,
+          `The first clean is priced as "${initial.label}". Each following visit uses "${rule.label}" and is not included in this total.`,
+          ...first.assumptions,
+          ...following.assumptions,
         );
       }
-      if (resolved === undefined) {
-        reasons.push(
-          `"${rule.label}" needs a quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
-        );
-        continue;
-      }
-      if (!isPositiveInteger(resolved)) {
-        reasons.push(
-          `"${rule.label}" needs a positive whole-number quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
-        );
-        continue;
-      }
-      quantity = resolved;
-      base = rule.amountMinor * resolved;
-    } else {
-      base = rule.amountMinor;
+      continue;
     }
-    let amountMinor = base;
-    if (
-      rule.minimumChargeMinor !== undefined &&
-      base < rule.minimumChargeMinor
-    ) {
-      amountMinor = rule.minimumChargeMinor;
-      assumptions.push(`Applied the minimum charge to "${rule.label}".`);
+    const priced = priceOne(rule, requested);
+    if (priced.kind === "unpriceable") {
+      reasons.push(priced.reason);
+      continue;
     }
-    lines.push({
-      ruleId: rule.id,
-      name: rule.label,
-      ...(rule.kind === "per_unit" ? { quantity } : {}),
-      amountMinor,
-    });
+    lines.push(priced.line);
+    assumptions.push(...priced.assumptions);
   }
 
   if (reasons.length > 0) {
     return { kind: "unpriceable", reasons: [...reasons] };
   }
 
-  return totalsOf(priceList, lines, assumptions);
+  return totalsOf(
+    priceList,
+    lines.filter((line) => line.includedInTotal !== false),
+    assumptions,
+    lines,
+  );
 }
 
-/** Subtotal/tax/total per the frozen money rules, once-per-line rounding. */
+type PricedOne =
+  | {
+      readonly kind: "priceable";
+      readonly line: PricedQuoteLine;
+      readonly assumptions: readonly string[];
+    }
+  | { readonly kind: "unpriceable"; readonly reason: string };
+
+/** One rule, one quantity. Does not know about first-visit pairing. */
+function priceOne(rule: PriceRule, requested: QuoteRequestLine): PricedOne {
+  const assumptions: string[] = [];
+  let quantity: number | undefined;
+  let base: number;
+  if (rule.kind === "per_unit") {
+    const resolved = requested.quantity ?? rule.defaultQuantity;
+    if (requested.quantity === undefined && resolved !== undefined) {
+      assumptions.push(
+        `Assumed quantity ${resolved} ${rule.unit ?? "(unit)"}(s) for "${rule.label}".`,
+      );
+    }
+    if (resolved === undefined) {
+      return {
+        kind: "unpriceable",
+        reason: `"${rule.label}" needs a quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
+      };
+    }
+    if (!isPositiveInteger(resolved)) {
+      return {
+        kind: "unpriceable",
+        reason: `"${rule.label}" needs a positive whole-number quantity${rule.unit ? ` of ${rule.unit}(s)` : ""}.`,
+      };
+    }
+    quantity = resolved;
+    base = rule.amountMinor * resolved;
+  } else {
+    base = rule.amountMinor;
+  }
+  let amountMinor = base;
+  if (rule.minimumChargeMinor !== undefined && base < rule.minimumChargeMinor) {
+    amountMinor = rule.minimumChargeMinor;
+    assumptions.push(`Applied the minimum charge to "${rule.label}".`);
+  }
+  return {
+    kind: "priceable",
+    line: {
+      ruleId: rule.id,
+      name: rule.label,
+      ...(rule.kind === "per_unit" ? { quantity } : {}),
+      amountMinor,
+    },
+    assumptions,
+  };
+}
+
+/** Subtotal/tax/total per the frozen money rules, once-per-line rounding.
+ * `payable` is what the total sums. `lines` is the snapshot, including a
+ * later-visit rate that is shown but not added. */
 function totalsOf(
   priceList: PriceList,
-  lines: readonly PricedQuoteLine[],
+  payable: readonly PricedQuoteLine[],
   assumptions: string[],
+  lines: readonly PricedQuoteLine[] = payable,
 ): PriceableQuote {
   const bps = priceList.taxMode === "none" ? 0 : (priceList.taxRateBps ?? 0);
   let subtotalMinor = 0;
   let taxMinor = 0;
   let totalMinor = 0;
-  for (const line of lines) {
+  for (const line of payable) {
     const lineTax =
       priceList.taxMode === "exclusive"
         ? // Tax added on top: one half-up rounding per line, never the sum.

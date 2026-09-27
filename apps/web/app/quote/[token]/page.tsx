@@ -127,28 +127,71 @@ export default async function QuotePage({
           )}
 
           <ul style={{ ...listStyle, marginTop: "1rem" }}>
-            {result.lines.map((line) => (
-              <li
-                key={`${line.name}-${line.quantity ?? 1}`}
+            {result.lines
+              .filter((line) => line.includedInTotal !== false)
+              .map((line) => (
+                <li
+                  key={`${line.name}-${line.quantity ?? 1}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    padding: "0.4rem 0",
+                    borderBottom: "1px solid #eee",
+                    fontSize: "0.95rem",
+                  }}
+                >
+                  <span>
+                    {line.name}
+                    {line.quantity ? ` × ${line.quantity}` : ""}
+                  </span>
+                  <span style={{ whiteSpace: "nowrap" }}>
+                    {formatMinor(result.currency, line.amountMinor)}
+                  </span>
+                </li>
+              ))}
+          </ul>
+          {result.lines.some((line) => line.includedInTotal === false) ? (
+            <>
+              <h2 style={{ fontSize: "0.9rem", margin: "1rem 0 0" }}>
+                Each following visit
+              </h2>
+              <p
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "0.75rem",
-                  padding: "0.4rem 0",
-                  borderBottom: "1px solid #eee",
-                  fontSize: "0.95rem",
+                  color: "#555",
+                  margin: "0.25rem 0 0",
+                  fontSize: "0.85rem",
                 }}
               >
-                <span>
-                  {line.name}
-                  {line.quantity ? ` × ${line.quantity}` : ""}
-                </span>
-                <span style={{ whiteSpace: "nowrap" }}>
-                  {formatMinor(result.currency, line.amountMinor)}
-                </span>
-              </li>
-            ))}
-          </ul>
+                Not included in the total.
+              </p>
+              <ul style={{ ...listStyle, marginTop: "0.35rem" }}>
+                {result.lines
+                  .filter((line) => line.includedInTotal === false)
+                  .map((line) => (
+                    <li
+                      key={`later-${line.name}-${line.quantity ?? 1}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
+                        padding: "0.4rem 0",
+                        borderBottom: "1px solid #eee",
+                        fontSize: "0.95rem",
+                      }}
+                    >
+                      <span>
+                        {line.name}
+                        {line.quantity ? ` × ${line.quantity}` : ""}
+                      </span>
+                      <span style={{ whiteSpace: "nowrap" }}>
+                        {formatMinor(result.currency, line.amountMinor)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </>
+          ) : null}
 
           {result.assumptions.length > 0 ? (
             <div style={{ marginTop: "0.75rem" }}>

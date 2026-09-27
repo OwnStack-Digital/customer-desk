@@ -201,3 +201,74 @@ describe("FakeClassifier rules (first match wins)", () => {
     expect(result.lane).toBe("complaint");
   });
 });
+
+describe("FakeClassifier service lines", () => {
+  const rooms: PriceList = {
+    version: "pl-rooms",
+    currency: "AUD",
+    taxMode: "none",
+    rules: [
+      {
+        id: "occupied_bedroom",
+        kind: "per_unit",
+        label: "Bedroom clean",
+        unit: "bedroom",
+        amountMinor: 5500,
+        aliases: ["bedroom", "bedrooms"],
+      },
+      {
+        id: "occupied_bedroom_recurring",
+        kind: "per_unit",
+        label: "Recurring bedroom clean",
+        unit: "bedroom",
+        amountMinor: 4000,
+        initialRuleId: "occupied_bedroom",
+      },
+      {
+        id: "bond_bedroom",
+        kind: "per_unit",
+        label: "Bond bedroom clean",
+        unit: "bedroom",
+        amountMinor: 8500,
+      },
+      {
+        id: "commercial_clean",
+        kind: "per_unit",
+        label: "Commercial clean",
+        unit: "hour",
+        amountMinor: 8500,
+        aliases: ["commercial", "office"],
+      },
+    ],
+  };
+  const roomsClassifier = new FakeClassifier(
+    { getKnowledgeBase: () => KB },
+    { getPriceList: () => rooms },
+  );
+
+  it("uses the bond rule when the email is an end-of-lease clean", async () => {
+    const result = await roomsClassifier.classify(
+      input("Quote", "Bond clean for 3 bedrooms"),
+    );
+    expect(result.quoteRequest?.lines).toEqual([
+      {
+        ruleId: "bond_bedroom",
+        label: "Bond bedroom clean",
+        quantity: 3,
+      },
+    ]);
+  });
+
+  it("uses the recurring rule for a weekly occupied clean", async () => {
+    const result = await roomsClassifier.classify(
+      input("Quote", "Weekly clean, 2 bedrooms"),
+    );
+    expect(result.quoteRequest?.lines).toEqual([
+      {
+        ruleId: "occupied_bedroom_recurring",
+        label: "Recurring bedroom clean",
+        quantity: 2,
+      },
+    ]);
+  });
+});

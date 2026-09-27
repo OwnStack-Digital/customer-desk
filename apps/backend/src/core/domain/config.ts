@@ -33,6 +33,8 @@ export type PriceRuleKind = "fixed" | "per_unit";
 
 export interface PriceRule {
   readonly id: string;
+  /** Owner-facing section, e.g. "Occupied home" or "Bond clean". */
+  readonly group?: string;
   readonly kind: PriceRuleKind;
   readonly label: string;
   /** Positive integer minor units (cents). */
@@ -43,6 +45,11 @@ export interface PriceRule {
   /** Assumed quantity for per_unit rules when the customer gives none. */
   readonly defaultQuantity?: number;
   readonly minimumChargeMinor?: number;
+  /**
+   * When set, the first visit is priced with this other rule and is the
+   * payable total. This rule is the later-visit rate and is not added in.
+   */
+  readonly initialRuleId?: string;
 }
 
 export interface PriceList {

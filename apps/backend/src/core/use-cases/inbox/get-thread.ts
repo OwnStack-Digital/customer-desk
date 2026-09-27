@@ -276,6 +276,9 @@ function threadQuoteOf(quote: QuoteVersion): ThreadQuote {
       name: line.name,
       ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
       amountMinor: line.amountMinor,
+      ...(line.includedInTotal === false
+        ? { includedInTotal: false }
+        : {}),
     })),
   };
 }

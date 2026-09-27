@@ -264,6 +264,7 @@ export type ThreadQuote = {
     name: string;
     quantity?: number;
     amountMinor: number;
+    includedInTotal?: boolean;
   }>;
 };
 
@@ -273,9 +274,11 @@ export type PriceCatalog = {
   version: string;
   rules: Array<{
     id: string;
+    group?: string;
     label: string;
     kind: "fixed" | "per_unit";
     unit?: string;
+    initialRuleId?: string;
   }>;
 };
 
@@ -284,7 +287,12 @@ export type PublicQuote = {
   businessName: string;
   status: "sent" | "accepted" | "declined" | "superseded" | "expired";
   currency: string;
-  lines: Array<{ name: string; quantity?: number; amountMinor: number }>;
+  lines: Array<{
+    name: string;
+    quantity?: number;
+    amountMinor: number;
+    includedInTotal?: boolean;
+  }>;
   assumptions: string[];
   subtotalMinor: number;
   taxMinor: number;

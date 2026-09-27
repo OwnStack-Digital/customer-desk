@@ -1,20 +1,143 @@
 {
-  "version": "pl-1",
+  "version": "pl-3",
   "currency": "AUD",
   "taxMode": "exclusive",
   "taxRateBps": 1000,
   "rules": [
     {
-      "id": "regular_clean",
+      "id": "occupied_bedroom",
+      "group": "Occupied home",
       "kind": "per_unit",
-      "label": "Regular clean",
+      "label": "Bedroom clean",
       "unit": "bedroom",
+      "amountMinor": 5500,
+      "aliases": ["bedroom", "bedrooms"]
+    },
+    {
+      "id": "occupied_bathroom",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Bathroom clean",
+      "unit": "bathroom",
       "amountMinor": 4500,
-      "minimumChargeMinor": 9000,
-      "aliases": ["clean", "regular clean"]
+      "aliases": ["bathroom", "bathrooms", "ensuite"]
+    },
+    {
+      "id": "occupied_kitchen",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Kitchen clean",
+      "unit": "kitchen",
+      "amountMinor": 7500,
+      "aliases": ["kitchen"]
+    },
+    {
+      "id": "occupied_living",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Living area clean",
+      "unit": "living area",
+      "amountMinor": 4000,
+      "aliases": ["living area", "living room", "lounge"]
+    },
+    {
+      "id": "occupied_bedroom_recurring",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Recurring bedroom clean",
+      "unit": "bedroom",
+      "amountMinor": 4000,
+      "initialRuleId": "occupied_bedroom",
+      "aliases": ["weekly bedroom", "fortnightly bedroom"]
+    },
+    {
+      "id": "occupied_bathroom_recurring",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Recurring bathroom clean",
+      "unit": "bathroom",
+      "amountMinor": 3000,
+      "initialRuleId": "occupied_bathroom",
+      "aliases": ["weekly bathroom", "fortnightly bathroom"]
+    },
+    {
+      "id": "occupied_kitchen_recurring",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Recurring kitchen clean",
+      "unit": "kitchen",
+      "amountMinor": 5500,
+      "initialRuleId": "occupied_kitchen",
+      "aliases": ["weekly kitchen", "fortnightly kitchen"]
+    },
+    {
+      "id": "occupied_living_recurring",
+      "group": "Occupied home",
+      "kind": "per_unit",
+      "label": "Recurring living area clean",
+      "unit": "living area",
+      "amountMinor": 2500,
+      "initialRuleId": "occupied_living",
+      "aliases": ["weekly living area", "fortnightly living area"]
+    },
+    {
+      "id": "bond_bedroom",
+      "group": "Bond clean",
+      "kind": "per_unit",
+      "label": "Bond bedroom clean",
+      "unit": "bedroom",
+      "amountMinor": 8500,
+      "aliases": ["bond bedroom", "end of lease bedroom"]
+    },
+    {
+      "id": "bond_bathroom",
+      "group": "Bond clean",
+      "kind": "per_unit",
+      "label": "Bond bathroom clean",
+      "unit": "bathroom",
+      "amountMinor": 7000,
+      "aliases": ["bond bathroom", "end of lease bathroom"]
+    },
+    {
+      "id": "bond_kitchen",
+      "group": "Bond clean",
+      "kind": "per_unit",
+      "label": "Bond kitchen clean",
+      "unit": "kitchen",
+      "amountMinor": 14000,
+      "aliases": ["bond kitchen", "end of lease kitchen"]
+    },
+    {
+      "id": "bond_living",
+      "group": "Bond clean",
+      "kind": "per_unit",
+      "label": "Bond living area clean",
+      "unit": "living area",
+      "amountMinor": 5500,
+      "aliases": ["bond living area", "end of lease living area"]
+    },
+    {
+      "id": "commercial_clean",
+      "group": "Commercial",
+      "kind": "per_unit",
+      "label": "Commercial clean",
+      "unit": "hour",
+      "amountMinor": 8500,
+      "aliases": ["commercial", "office clean", "office"]
+    },
+    {
+      "id": "commercial_clean_recurring",
+      "group": "Commercial",
+      "kind": "per_unit",
+      "label": "Recurring commercial clean",
+      "unit": "hour",
+      "amountMinor": 6500,
+      "initialRuleId": "commercial_clean",
+      "aliases": ["weekly commercial", "fortnightly office"]
     },
     {
       "id": "oven_clean",
+      "group": "Add-on",
       "kind": "fixed",
       "label": "Oven clean",
       "amountMinor": 6500,

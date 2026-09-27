@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PriceList } from "./config";
 import type { PriceableQuote } from "./pricing";
 import { buildQuote } from "./pricing";
+import { buildQuoteBody } from "./quote";
 
 /**
  * Slice 6 domain tests (PLAN.md task 6.1). Pure: these tests never open a
@@ -256,6 +257,64 @@ describe("buildQuote (task 6.1)", () => {
     );
     expect(quote.lines).toHaveLength(2);
     expect(quote.subtotalMinor).toBe(13_000);
+  });
+
+  it("prices a recurring clean as a first visit plus a later rate not in the total", () => {
+    const quote = priceable(
+      price(
+        list({
+          rules: [
+            {
+              id: "one_time_clean",
+              kind: "per_unit",
+              label: "One-time clean",
+              unit: "bedroom",
+              amountMinor: 6500,
+              minimumChargeMinor: 13000,
+            },
+            {
+              id: "recurring_clean",
+              kind: "per_unit",
+              label: "Recurring clean",
+              unit: "bedroom",
+              amountMinor: 4500,
+              minimumChargeMinor: 9000,
+              initialRuleId: "one_time_clean",
+            },
+          ],
+        }),
+        [{ ruleId: "recurring_clean", label: "weekly", quantity: 3 }],
+      ),
+    );
+    expect(quote.lines).toEqual([
+      {
+        ruleId: "one_time_clean",
+        name: "One-time clean",
+        quantity: 3,
+        amountMinor: 19_500,
+      },
+      {
+        ruleId: "recurring_clean",
+        name: "Recurring clean",
+        quantity: 3,
+        amountMinor: 13_500,
+        includedInTotal: false,
+      },
+    ]);
+    expect(quote.subtotalMinor).toBe(19_500);
+    expect(quote.taxMinor).toBe(1950);
+    expect(quote.totalMinor).toBe(21_450);
+    const body = buildQuoteBody({
+      quote,
+      quoteValidityDays: 14,
+    });
+    expect(body).toContain("One-time clean × 3: AUD 195.00");
+    expect(body).toContain(
+      "Each following visit is not included in the total:",
+    );
+    expect(body).toContain("Recurring clean × 3: AUD 135.00");
+    expect(body).toContain("Total: AUD 214.50");
+    expect(body).not.toContain("Total: AUD 349.50");
   });
 
   it("reports every problem line, and no request lines at all is unpriceable", () => {

@@ -230,6 +230,7 @@ export interface ThreadQuote {
     readonly name: string;
     readonly quantity?: number;
     readonly amountMinor: number;
+    readonly includedInTotal?: boolean;
   }[];
 }
 
