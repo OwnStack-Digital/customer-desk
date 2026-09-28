@@ -53,13 +53,25 @@ export class GetThread {
       organizationId,
       conversationId,
     );
-    const latestMessage = messages[messages.length - 1];
-    const latestRevision = latestMessage
-      ? await this.deps.revisions.findLatestByMessage(
-          organizationId,
-          latestMessage.id,
-        )
-      : undefined;
+    // Latest processed turn, not merely the latest row. An owner email to
+    // the customer has no revision and must not hide the assistant result.
+    let latestRevision: Awaited<
+      ReturnType<ProcessingRevisionRepository["findLatestByMessage"]>
+    >;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!message) {
+        continue;
+      }
+      const revision = await this.deps.revisions.findLatestByMessage(
+        organizationId,
+        message.id,
+      );
+      if (revision) {
+        latestRevision = revision;
+        break;
+      }
+    }
     // Task 4.5: the newest proposed/approved draft of the conversation,
     // with the fact ids its body is grounded in.
     const draft = await this.deps.drafts.findLatestByConversation(
@@ -200,7 +212,7 @@ const HIDDEN_EVENTS = new Set([
 function timelineOf(
   messages: readonly {
     id: string;
-    direction: "inbound" | "outbound";
+    direction: "inbound" | "outbound" | "instruction";
     receivedAt: string;
     fromAddress: string;
     subject: string | null;
@@ -211,7 +223,12 @@ function timelineOf(
   const entries: ThreadTimelineEntry[] = [
     ...messages.map(
       (message): ThreadTimelineEntry => ({
-        kind: message.direction === "inbound" ? "received" : "sent",
+        kind:
+          message.direction === "inbound"
+            ? "received"
+            : message.direction === "instruction"
+              ? "instruction"
+              : "sent",
         id: message.id,
         at: message.receivedAt,
         from: message.fromAddress,
@@ -276,9 +293,7 @@ function threadQuoteOf(quote: QuoteVersion): ThreadQuote {
       name: line.name,
       ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
       amountMinor: line.amountMinor,
-      ...(line.includedInTotal === false
-        ? { includedInTotal: false }
-        : {}),
+      ...(line.includedInTotal === false ? { includedInTotal: false } : {}),
     })),
   };
 }

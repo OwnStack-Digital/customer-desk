@@ -45,7 +45,7 @@ async function callApi(
 
 /** `redirect` only runs on the success path; TypeScript needs a return. */
 function back(conversationId: string): never {
-  redirect(`/threads/${conversationId}`);
+  redirect(`/threads/${conversationId}#conversation`);
 }
 
 export async function approveDraft(formData: FormData): Promise<void> {
@@ -164,6 +164,18 @@ export async function confirmQuoteDecision(formData: FormData): Promise<void> {
   back(conversationId);
 }
 
+/** Asks the assistant to redraft. Not emailed to the customer. */
+export async function instructAssistant(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const text = String(formData.get("text") ?? "");
+  await callApi(conversationId, `/threads/${conversationId}/instructions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  back(conversationId);
+}
+
 /** Queues an operator email on this conversation, with or without a draft. */
 export async function sendOperatorMessage(formData: FormData): Promise<void> {
   const conversationId = String(formData.get("conversationId") ?? "");
@@ -173,6 +185,22 @@ export async function sendOperatorMessage(formData: FormData): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ text }),
   });
+  back(conversationId);
+}
+
+/** Stores a customer reply on this thread and processes it. */
+export async function receiveCustomerReply(formData: FormData): Promise<void> {
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const text = String(formData.get("text") ?? "");
+  await callApi(
+    conversationId,
+    `/threads/${conversationId}/customer-messages`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    },
+  );
   back(conversationId);
 }
 

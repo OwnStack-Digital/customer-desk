@@ -523,13 +523,35 @@ export class FakeDraftRevisions implements DraftRevisionRepository {
     organizationId: string,
     conversationId: string,
   ): Promise<number> {
+    return this.supersedeWhere(
+      organizationId,
+      conversationId,
+      (row) => row.origin === "processing" && row.status === "proposed",
+    );
+  }
+
+  supersedeProposed(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<number> {
+    return this.supersedeWhere(
+      organizationId,
+      conversationId,
+      (row) => row.status === "proposed",
+    );
+  }
+
+  private supersedeWhere(
+    organizationId: string,
+    conversationId: string,
+    match: (row: DraftRevision) => boolean,
+  ): Promise<number> {
     let count = 0;
     for (const row of this.rows) {
       if (
         row.organizationId === organizationId &&
         row.conversationId === conversationId &&
-        row.origin === "processing" &&
-        row.status === "proposed"
+        match(row)
       ) {
         Object.assign(row, { status: "superseded" as const });
         count += 1;

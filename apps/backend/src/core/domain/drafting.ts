@@ -113,6 +113,8 @@ export interface FaqBodyInput {
   readonly blocks: readonly FaqBlock[];
   /** Asked topics with no supporting block (explicit unknown lines). */
   readonly unknownTopics: readonly string[];
+  /** Code-built sentences (catalog labels). Never model prose. */
+  readonly notes?: readonly string[];
 }
 
 /** The explicit unknown line naming one missing topic. */
@@ -133,6 +135,7 @@ export function buildFaqBody(input: FaqBodyInput): string {
   const lines = [
     ...(greeting ? [greeting] : []),
     ...blocks.map((block) => block.text),
+    ...(input.notes ?? []),
     ...input.unknownTopics.map((topic) => unknownLine(topic)),
     ...(closing ? [closing] : []),
   ];

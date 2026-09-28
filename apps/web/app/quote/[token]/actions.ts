@@ -52,7 +52,7 @@ export async function sendCustomerMessage(formData: FormData): Promise<void> {
     }
     redirect(`/quote/${token}?error=${encodeURIComponent(messageOf(error))}`);
   }
-  redirect(`/quote/${token}`);
+  redirect(`/quote/${token}#conversation`);
 }
 
 function messageOf(error: unknown): string {

@@ -1,5 +1,5 @@
 {
-  "version": "kb-1",
+  "version": "kb-2",
   "blocks": [
     {
       "id": "kb_hours",
@@ -20,6 +20,11 @@
       "id": "kb_booking",
       "tags": ["booking", "how booking works"],
       "text": "Booking takes two minutes: reply with your suburb and preferred day, we confirm by email, and you pay after the clean is done."
+    },
+    {
+      "id": "kb_services",
+      "tags": ["commercial", "commercial cleaning", "services", "services offered"],
+      "text": "Yes, we do commercial and office cleaning, as well as home cleaning and oven cleans."
     }
   ]
 }

@@ -20,6 +20,16 @@ import {
   type ReviseDeclinedQuoteOutcome,
 } from "../../../../core/use-cases/quotes/revise-declined-quote";
 import {
+  type AssistantInstruction,
+  INSTRUCT_ASSISTANT,
+  type InstructAssistant,
+} from "../../../../core/use-cases/review/instruct-assistant";
+import {
+  RECEIVE_CUSTOMER_REPLY,
+  type ReceiveCustomerReply,
+  type ReceivedCustomerReply,
+} from "../../../../core/use-cases/review/receive-customer-reply";
+import {
   REVIEW_DRAFT,
   type ReviewDraft,
   type ReviewDraftAction,
@@ -82,6 +92,8 @@ export class DraftsController {
   private readonly takeOverUseCase: TakeOverConversation;
   private readonly confirmQuoteDecision: ConfirmQuoteDecision;
   private readonly sendOperatorMessage: SendOperatorMessage;
+  private readonly instructAssistant: InstructAssistant;
+  private readonly receiveCustomerReply: ReceiveCustomerReply;
   private readonly reviseDeclinedQuote: ReviseDeclinedQuote;
   private readonly config: ValidatedConfig;
 
@@ -91,6 +103,9 @@ export class DraftsController {
     @Inject(CONFIRM_QUOTE_DECISION)
     confirmQuoteDecision: ConfirmQuoteDecision,
     @Inject(SEND_OPERATOR_MESSAGE) sendOperatorMessage: SendOperatorMessage,
+    @Inject(INSTRUCT_ASSISTANT) instructAssistant: InstructAssistant,
+    @Inject(RECEIVE_CUSTOMER_REPLY)
+    receiveCustomerReply: ReceiveCustomerReply,
     @Inject(REVISE_DECLINED_QUOTE) reviseDeclinedQuote: ReviseDeclinedQuote,
     @Inject(CONFIG) config: ValidatedConfig,
   ) {
@@ -98,6 +113,8 @@ export class DraftsController {
     this.takeOverUseCase = takeOverUseCase;
     this.confirmQuoteDecision = confirmQuoteDecision;
     this.sendOperatorMessage = sendOperatorMessage;
+    this.instructAssistant = instructAssistant;
+    this.receiveCustomerReply = receiveCustomerReply;
     this.reviseDeclinedQuote = reviseDeclinedQuote;
     this.config = config;
   }
@@ -196,6 +213,58 @@ export class DraftsController {
       throw new NotFoundException("No conversation with that id.");
     }
     return sent;
+  }
+
+  @Post(":conversationId/instructions")
+  @UseGuards(SessionGuard)
+  async instruct(
+    @Param("conversationId") conversationId: string,
+    @Body() body: OperatorMessageBody,
+    @Req() request: OperatorRequest,
+  ): Promise<AssistantInstruction> {
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      typeof body.text !== "string"
+    ) {
+      throw validationError("text is required in the body.");
+    }
+    const instructed = await this.instructAssistant.run(
+      this.config.organization.id,
+      conversationId,
+      body.text,
+      operatorEmailOf(request),
+    );
+    if (!instructed) {
+      throw new NotFoundException("No conversation with that id.");
+    }
+    return instructed;
+  }
+
+  @Post(":conversationId/customer-messages")
+  @UseGuards(SessionGuard)
+  async receiveCustomerMessage(
+    @Param("conversationId") conversationId: string,
+    @Body() body: OperatorMessageBody,
+    @Req() request: OperatorRequest,
+  ): Promise<ReceivedCustomerReply> {
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      typeof body.text !== "string"
+    ) {
+      throw validationError("text is required in the body.");
+    }
+    const received = await this.receiveCustomerReply.run(
+      this.config.organization.id,
+      conversationId,
+      body.text,
+      operatorEmailOf(request),
+    );
+    if (!received) {
+      throw new NotFoundException("No conversation with that id.");
+    }
+    return received;
   }
 
   @Post(":conversationId/quote-revision")

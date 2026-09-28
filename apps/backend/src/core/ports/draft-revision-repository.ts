@@ -47,6 +47,15 @@ export interface DraftRevisionRepository {
   ): Promise<number>;
 
   /**
+   * Replaces every proposed draft, including an operator edit. Used only
+   * when the owner explicitly asks the assistant to update the reply.
+   */
+  supersedeProposed(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<number>;
+
+  /**
    * Conditional status transition. Returns false when the row was not in
    * `from` (e.g. it was superseded, discarded, or already approved), which
    * the caller maps to 409 `stale_revision`.

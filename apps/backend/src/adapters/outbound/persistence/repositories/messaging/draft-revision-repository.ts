@@ -148,6 +148,40 @@ export class DrizzleDraftRevisionRepository implements DraftRevisionRepository {
     return rows.length;
   }
 
+  async supersedeProposed(
+    organizationId: string,
+    conversationId: string,
+  ): Promise<number> {
+    const where = { organizationId, conversationId } as const;
+    let rows: { id: string }[];
+    if (this.client.dialect === "sqlite") {
+      rows = await this.sqlite()
+        .update(sqliteDraftRevisions)
+        .set({ status: "superseded" })
+        .where(
+          and(
+            eq(sqliteDraftRevisions.organizationId, where.organizationId),
+            eq(sqliteDraftRevisions.conversationId, where.conversationId),
+            eq(sqliteDraftRevisions.status, "proposed"),
+          ),
+        )
+        .returning({ id: sqliteDraftRevisions.id });
+    } else {
+      rows = await this.postgres()
+        .update(pgDraftRevisions)
+        .set({ status: "superseded" })
+        .where(
+          and(
+            eq(pgDraftRevisions.organizationId, where.organizationId),
+            eq(pgDraftRevisions.conversationId, where.conversationId),
+            eq(pgDraftRevisions.status, "proposed"),
+          ),
+        )
+        .returning({ id: pgDraftRevisions.id });
+    }
+    return rows.length;
+  }
+
   async updateStatus(
     organizationId: string,
     revisionId: string,

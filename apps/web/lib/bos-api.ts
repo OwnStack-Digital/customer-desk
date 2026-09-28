@@ -195,7 +195,7 @@ export type Thread = {
   };
   messages: Array<{
     id: string;
-    direction: "inbound" | "outbound";
+    direction: "inbound" | "outbound" | "instruction";
     at: string;
     from: string;
     subject?: string;
@@ -236,7 +236,7 @@ export type Thread = {
 
 export type ThreadTimelineEntry =
   | {
-      kind: "received" | "sent";
+      kind: "received" | "sent" | "instruction";
       id: string;
       at: string;
       from: string;
@@ -305,6 +305,7 @@ export type PublicQuote = {
     direction: "inbound" | "outbound";
     at: string;
     from: string;
+    subject?: string;
     text?: string;
   }>;
 };

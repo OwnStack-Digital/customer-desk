@@ -12,6 +12,8 @@ import {
   confirmQuoteDecision,
   discardDraft,
   editDraft,
+  instructAssistant,
+  receiveCustomerReply,
   retryProcessing,
   reviseDeclinedQuote,
   sendDraft,
@@ -101,6 +103,16 @@ const dangerButtonStyle = {
   borderColor: "#b00020",
 } as const;
 
+const composeStyle = {
+  width: "100%",
+  boxSizing: "border-box" as const,
+  padding: "0.5rem",
+  borderRadius: "8px",
+  border: "1px solid #e2e2e2",
+  fontFamily: "inherit",
+  fontSize: "0.9rem",
+};
+
 function TimelineRow({ entry }: { entry: ThreadTimelineEntry }) {
   if (entry.kind === "event") {
     return (
@@ -123,15 +135,27 @@ function TimelineRow({ entry }: { entry: ThreadTimelineEntry }) {
     );
   }
   const received = entry.kind === "received";
+  const instruction = entry.kind === "instruction";
+  const label = instruction
+    ? "To the assistant"
+    : received
+      ? "Received"
+      : "Sent";
   return (
     <li
       style={{
-        alignSelf: received ? "flex-start" : "flex-end",
+        alignSelf: instruction
+          ? "center"
+          : received
+            ? "flex-start"
+            : "flex-end",
         width: "min(100%, 34rem)",
-        border: `1px solid ${received ? "#cfe3d4" : "#d7d7d7"}`,
+        border: `1px solid ${
+          instruction ? "#c5b6e0" : received ? "#cfe3d4" : "#d7d7d7"
+        }`,
         borderRadius: "8px",
         padding: "0.75rem",
-        background: received ? "#f3faf4" : "#f5f5f5",
+        background: instruction ? "#f6f3fb" : received ? "#f3faf4" : "#f5f5f5",
       }}
     >
       <div
@@ -144,7 +168,7 @@ function TimelineRow({ entry }: { entry: ThreadTimelineEntry }) {
         }}
       >
         <span>
-          <strong>{received ? "Received" : "Sent"}</strong> · {entry.from}
+          <strong>{label}</strong> · {entry.from}
         </span>
         <span style={{ whiteSpace: "nowrap" }}>{formatTime(entry.at)}</span>
       </div>
@@ -781,7 +805,10 @@ export default async function ThreadPage({
               </div>
             </section>
           ) : null}
-          <h2 style={{ fontSize: "1rem", margin: "1.25rem 0 0" }}>
+          <h2
+            id="conversation"
+            style={{ fontSize: "1rem", margin: "1.25rem 0 0" }}
+          >
             Conversation
           </h2>
           <p
@@ -791,7 +818,8 @@ export default async function ThreadPage({
               fontSize: "0.75rem",
             }}
           >
-            Received, sent, and actions stay in order and look different.
+            Received, sent, assistant notes, and actions stay in order and look
+            different.
           </p>
           {(result.timeline ?? []).length === 0 ? (
             <p style={{ color: "#555" }}>This conversation has no messages.</p>
@@ -811,47 +839,162 @@ export default async function ThreadPage({
               ))}
             </ul>
           )}
-          <form action={sendOperatorMessage} style={{ marginTop: "1rem" }}>
-            <input type="hidden" name="conversationId" value={conversationId} />
-            <label
-              htmlFor="operator-message"
-              style={{ display: "block", fontSize: "0.9rem", fontWeight: 600 }}
-            >
-              Send a message
-            </label>
-            <p
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              marginTop: "1rem",
+            }}
+          >
+            <form
+              action={instructAssistant}
               style={{
-                margin: "0.25rem 0 0.5rem",
-                color: "#555",
-                fontSize: "0.8rem",
-              }}
-            >
-              Queues an email to the customer at any stage. It does not change
-              the quote or replace a draft.
-            </p>
-            <textarea
-              id="operator-message"
-              name="text"
-              required
-              rows={4}
-              placeholder="Write to the customer…"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "0.5rem",
+                padding: "0.75rem",
+                border: "1px solid #6b4c9a",
                 borderRadius: "8px",
-                border: "1px solid #e2e2e2",
-                fontFamily: "inherit",
-                fontSize: "0.9rem",
+                background: "#f6f3fb",
               }}
-            />
-            <button
-              type="submit"
-              style={{ ...buttonStyle, marginTop: "0.5rem" }}
             >
-              Send message
-            </button>
-          </form>
+              <input
+                type="hidden"
+                name="conversationId"
+                value={conversationId}
+              />
+              <label
+                htmlFor="assistant-instruction"
+                style={{
+                  display: "block",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                }}
+              >
+                Ask the assistant
+              </label>
+              <p
+                style={{
+                  margin: "0.25rem 0 0.5rem",
+                  color: "#555",
+                  fontSize: "0.8rem",
+                }}
+              >
+                Processed with the whole thread and can replace the draft. Not
+                emailed to the customer.
+              </p>
+              <textarea
+                id="assistant-instruction"
+                name="text"
+                required
+                rows={4}
+                placeholder="Tell the assistant what to draft…"
+                style={composeStyle}
+              />
+              <button
+                type="submit"
+                style={{ ...buttonStyle, marginTop: "0.5rem" }}
+              >
+                Update draft
+              </button>
+            </form>
+            <form
+              action={sendOperatorMessage}
+              style={{
+                padding: "0.75rem",
+                border: "1px solid #1a1a1a",
+                borderRadius: "8px",
+                background: "#fff",
+              }}
+            >
+              <input
+                type="hidden"
+                name="conversationId"
+                value={conversationId}
+              />
+              <label
+                htmlFor="operator-message"
+                style={{
+                  display: "block",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                }}
+              >
+                Send to the customer
+              </label>
+              <p
+                style={{
+                  margin: "0.25rem 0 0.5rem",
+                  color: "#555",
+                  fontSize: "0.8rem",
+                }}
+              >
+                Emails the customer. It is not an instruction to the assistant,
+                and it does not change the quote or replace a draft.
+              </p>
+              <textarea
+                id="operator-message"
+                name="text"
+                required
+                rows={4}
+                placeholder="Write to the customer…"
+                style={composeStyle}
+              />
+              <button
+                type="submit"
+                style={{ ...buttonStyle, marginTop: "0.5rem" }}
+              >
+                Send message
+              </button>
+            </form>
+            <form
+              action={receiveCustomerReply}
+              style={{
+                padding: "0.75rem",
+                border: "1px solid #2e7d32",
+                borderRadius: "8px",
+                background: "#f3faf4",
+              }}
+            >
+              <input
+                type="hidden"
+                name="conversationId"
+                value={conversationId}
+              />
+              <label
+                htmlFor="customer-reply"
+                style={{
+                  display: "block",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                }}
+              >
+                Send as the customer
+              </label>
+              <p
+                style={{
+                  margin: "0.25rem 0 0.5rem",
+                  color: "#555",
+                  fontSize: "0.8rem",
+                }}
+              >
+                Adds a later reply from {result.conversation.customer.address}
+                and processes it with the earlier messages. It does not email
+                anyone. The draft updates on this page.
+              </p>
+              <textarea
+                id="customer-reply"
+                name="text"
+                required
+                rows={4}
+                placeholder="Write as the customer…"
+                style={composeStyle}
+              />
+              <button
+                type="submit"
+                style={{ ...buttonStyle, marginTop: "0.5rem" }}
+              >
+                Send customer reply
+              </button>
+            </form>
+          </div>
         </>
       )}
     </main>

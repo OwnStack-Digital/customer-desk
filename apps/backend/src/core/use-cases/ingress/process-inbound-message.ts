@@ -5,6 +5,15 @@ import {
   cleanWording,
   compareFactIds,
 } from "../../domain/drafting";
+import {
+  factsForInstruction,
+  instructionNotes,
+  instructionWantsQuote,
+  linesForCustomerQuote,
+  linesForInstruction,
+  missingQuoteQuestions,
+  unpriceableInstructionBody,
+} from "../../domain/instruction";
 import type { StoredMessage } from "../../domain/messaging";
 import { buildQuote } from "../../domain/pricing";
 import type {
@@ -159,6 +168,36 @@ export class ProcessInboundMessage {
 
     try {
       let classification = await this.classify(message);
+      const instruction = message.direction === "instruction";
+      if (instruction) {
+        const blocked = await this.prepareInstruction(organizationId, message);
+        if (blocked) {
+          await this.deps.revisions.completeRevision(revision.id, {
+            status: "needs_human",
+            lane: classification.lane,
+            summary: blocked,
+            classification,
+            error: null,
+          });
+          return {
+            revisionId: revision.id,
+            status: "needs_human",
+            lane: classification.lane,
+            summary: blocked,
+          };
+        }
+        classification = await this.classificationForInstruction(
+          organizationId,
+          message,
+          classification,
+        );
+      } else if (message.direction === "inbound") {
+        classification = await this.followUpQuote(
+          organizationId,
+          message,
+          classification,
+        );
+      }
       let outcome = outcomeOf(classification);
       let summary = classification.summary;
       if (
@@ -170,12 +209,25 @@ export class ProcessInboundMessage {
           organizationId,
           message.conversationId,
         );
-        if (conversation?.automationPaused) {
+        if (
+          conversation?.automationPaused &&
+          message.direction !== "instruction"
+        ) {
           // Take-over: classification is still recorded, but the current
           // draft stays exactly as it is and no machine draft is created.
+          // An explicit owner instruction still drafts.
           outcome = "needs_human";
         } else if (classification.lane === "faq") {
-          if ((classification.faqFactIds ?? []).length === 0) {
+          const notes = instruction
+            ? instructionNotes(
+                this.deps.priceList.getPriceList(),
+                message.text ?? "",
+              )
+            : [];
+          if (
+            (classification.faqFactIds ?? []).length === 0 &&
+            notes.length === 0
+          ) {
             // Task 4.4: no supporting fact stays unknown.
             outcome = "needs_human";
           }
@@ -190,6 +242,26 @@ export class ProcessInboundMessage {
           if (priced.kind === "unpriceable") {
             outcome = "needs_human";
             summary = `Quote request cannot be priced: ${priced.reasons.join(" ")}`;
+            const priceList = this.deps.priceList.getPriceList();
+            await this.deps.drafts.supersedeProcessingProposed(
+              organizationId,
+              message.conversationId,
+            );
+            await this.insertInstructionDraft(
+              organizationId,
+              message,
+              instruction
+                ? unpriceableInstructionBody(
+                    priceList,
+                    classification.quoteRequest?.lines ?? [],
+                    priced.reasons,
+                  )
+                : missingQuoteQuestions(
+                    priceList,
+                    message.text ?? "",
+                    priced.reasons,
+                  ),
+            );
           } else {
             await this.insertQuoteDraft(organizationId, message, priced);
           }
@@ -280,13 +352,22 @@ export class ProcessInboundMessage {
     const blocks = knowledgeBase.blocks
       .filter((block) => factIds.includes(block.id))
       .map((block) => ({ id: block.id, text: block.text }));
-    const unknownTopics = factIds.length === 0 ? [topicOf(message)] : [];
+    const notes =
+      message.direction === "instruction"
+        ? instructionNotes(
+            this.deps.priceList.getPriceList(),
+            message.text ?? "",
+          )
+        : [];
+    const unknownTopics =
+      factIds.length === 0 && notes.length === 0 ? [topicOf(message)] : [];
     const wording = await this.deps.drafter.draft();
     const bodyText = buildFaqBody({
       greeting: wording.greeting,
       closing: wording.closing,
       blocks,
       unknownTopics,
+      notes,
     });
     const now = this.deps.clock.now().toISOString();
     const draft: DraftRevision = {
@@ -404,6 +485,141 @@ export class ProcessInboundMessage {
   }
 
   /**
+   * A later customer email that asks for a price is a new quote, not a
+   * decision on the previous one. Lines come from this email only. Accept
+   * and decline stay quote replies.
+   */
+  private async followUpQuote(
+    organizationId: string,
+    message: StoredMessage,
+    classification: Classification,
+  ): Promise<Classification> {
+    const prior = await this.deps.messages.listByConversation(
+      organizationId,
+      message.conversationId,
+    );
+    const earlier = prior.some(
+      (turn) => turn.direction === "inbound" && turn.id !== message.id,
+    );
+    if (!earlier) {
+      return classification;
+    }
+    if (classification.lane !== "quote") {
+      return classification;
+    }
+    const text = message.text ?? "";
+    return {
+      lane: "quote",
+      confidence: "high",
+      summary: classification.summary || "Quote request",
+      quoteRequest: {
+        lines: linesForCustomerQuote(
+          this.deps.priceList.getPriceList(),
+          text,
+          classification.quoteRequest?.lines ?? [],
+        ),
+      },
+    };
+  }
+
+  /**
+   * An approved draft is the owner's send decision. Do not replace it.
+   * Any other proposed draft is replaced: the owner just asked for an update.
+   */
+  private async prepareInstruction(
+    organizationId: string,
+    message: StoredMessage,
+  ): Promise<string | undefined> {
+    const latest = await this.deps.drafts.findLatestByConversation(
+      organizationId,
+      message.conversationId,
+    );
+    if (latest?.status === "approved") {
+      return "Send or discard the approved draft before the assistant can replace it.";
+    }
+    await this.deps.drafts.supersedeProposed(
+      organizationId,
+      message.conversationId,
+    );
+    return undefined;
+  }
+
+  /** Turns an owner note into a quote or FAQ action, even if the model parked it. */
+  private async classificationForInstruction(
+    organizationId: string,
+    message: StoredMessage,
+    classification: Classification,
+  ): Promise<Classification> {
+    if (classification.lane === "complaint") {
+      return classification;
+    }
+    const prior = await this.deps.messages.listByConversation(
+      organizationId,
+      message.conversationId,
+    );
+    const customerText =
+      [...prior]
+        .reverse()
+        .find((turn) => turn.direction === "inbound" && turn.id !== message.id)
+        ?.text ?? "";
+    const instruction = message.text ?? "";
+    const priceList = this.deps.priceList.getPriceList();
+    const summary =
+      classification.summary.trim() ||
+      "Updated the draft from the instruction.";
+    if (instructionWantsQuote(instruction)) {
+      return {
+        lane: "quote",
+        confidence: "high",
+        summary,
+        quoteRequest: {
+          lines: linesForInstruction(
+            priceList,
+            customerText,
+            instruction,
+            classification.quoteRequest?.lines ?? [],
+          ),
+        },
+      };
+    }
+    return {
+      lane: "faq",
+      confidence: "high",
+      summary,
+      faqFactIds: factsForInstruction(
+        this.deps.knowledgeBase.getKnowledgeBase(),
+        customerText,
+        instruction,
+      ),
+    };
+  }
+
+  /** A proposed draft with no quote version, so a blocked price still changes the thread. */
+  private async insertInstructionDraft(
+    organizationId: string,
+    message: StoredMessage,
+    bodyText: string,
+  ): Promise<void> {
+    const now = this.deps.clock.now().toISOString();
+    await this.deps.drafts.insertDraft({
+      id: this.deps.ids.nextId(),
+      organizationId,
+      conversationId: message.conversationId,
+      messageId: message.id,
+      status: "proposed",
+      origin: "processing",
+      bodyText,
+      factIds: [],
+      knowledgeBaseVersion: null,
+      assumptions: [],
+      outboundMessageId: null,
+      quoteVersionId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  /**
    * Quote-reply context (brief 3.2): `inReplyTo` first, then `references`
    * from the end. Until quote versions exist (slice 6), any stored outbound
    * message of this mailbox counts as the replied-to quote.
@@ -423,6 +639,24 @@ export class ProcessInboundMessage {
         break;
       }
     }
+    const prior = await this.deps.messages.listByConversation(
+      message.organizationId,
+      message.conversationId,
+    );
+    const thread = prior
+      .filter(
+        (turn) => turn.id !== message.id && (turn.text ?? "").trim() !== "",
+      )
+      .slice(-12)
+      .map((turn) => ({
+        role:
+          turn.direction === "instruction"
+            ? ("operator" as const)
+            : turn.direction === "outbound"
+              ? ("sent" as const)
+              : ("customer" as const),
+        text: turn.text ?? "",
+      }));
     return this.deps.classifier.classify({
       email: {
         subject: message.subject ?? undefined,
@@ -430,6 +664,8 @@ export class ProcessInboundMessage {
         inReplyTo: message.inReplyTo ?? undefined,
         references: message.references ?? undefined,
       },
+      operatorInstruction: message.direction === "instruction",
+      thread,
       repliedToOutboundQuote,
     });
   }

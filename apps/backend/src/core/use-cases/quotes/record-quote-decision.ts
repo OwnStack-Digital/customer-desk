@@ -42,6 +42,7 @@ export interface PublicThreadMessage {
   readonly direction: MessageDirection;
   readonly at: string;
   readonly from: string;
+  readonly subject?: string;
   readonly text?: string;
 }
 
@@ -82,14 +83,16 @@ export class GetPublicQuote {
     const businessName = this.deps.profile.getProfile().name;
     return {
       ...publicQuoteOf(this.deps, quote),
-      messages: stored.map((message) =>
-        publicMessageOf(
-          message,
-          businessName,
-          conversation?.fromAddress,
-          rawToken,
+      messages: stored
+        .filter((message) => message.direction !== "instruction")
+        .map((message) =>
+          publicMessageOf(
+            message,
+            businessName,
+            conversation?.fromAddress,
+            rawToken,
+          ),
         ),
-      ),
     };
   }
 }
@@ -243,6 +246,7 @@ function publicMessageOf(
     direction: message.direction,
     at: message.receivedAt,
     from,
+    ...(message.subject ? { subject: message.subject } : {}),
     ...(text ? { text } : {}),
   };
 }

@@ -439,4 +439,35 @@ describe("POST /drafts/:revisionId/send and GET /outbox over HTTP", () => {
     });
     expect(thread.body.draft?.status).toBe("proposed");
   });
+
+  it("processes an owner instruction without emailing the customer", async () => {
+    const cookie = await loginCookie();
+    const { conversationId } = await ingest("src-assistant-instruction");
+    const noted = await request(app.getHttpServer())
+      .post(`/threads/${conversationId}/instructions`)
+      .set("Cookie", cookie)
+      .send({ text: "Quote 2 bedrooms, no oven." });
+    expect(noted.status).toBe(201);
+    expect(noted.body.conversationId).toBe(conversationId);
+
+    const thread = await request(app.getHttpServer())
+      .get(`/threads/${conversationId}`)
+      .set("Cookie", cookie);
+    expect(thread.body.messages.at(-1)).toMatchObject({
+      direction: "instruction",
+      text: "Quote 2 bedrooms, no oven.",
+    });
+    expect(thread.body.timeline.at(-1)).toMatchObject({
+      kind: "instruction",
+      text: "Quote 2 bedrooms, no oven.",
+    });
+    expect(
+      thread.body.messages.some(
+        (message: { direction: string; text?: string }) =>
+          message.direction === "outbound" &&
+          message.text === "Quote 2 bedrooms, no oven.",
+      ),
+    ).toBe(false);
+    expect(thread.body.processing?.lane).toBe("quote");
+  });
 });

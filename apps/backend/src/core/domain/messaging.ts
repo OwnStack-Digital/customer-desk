@@ -10,7 +10,8 @@ import type { OwnerVisibleQuoteStatus, QuoteDecision } from "./quote";
 /** Operator and customer compose limit. Long enough for a real email. */
 export const MESSAGE_TEXT_MAX_LENGTH = 8_000;
 
-export type MessageDirection = "inbound" | "outbound";
+/** `instruction` is an owner note to the assistant. It is not emailed. */
+export type MessageDirection = "inbound" | "outbound" | "instruction";
 
 export type ProcessingStatus =
   | "pending"
@@ -200,7 +201,7 @@ export interface Thread {
 /** One row of the conversation timeline. */
 export type ThreadTimelineEntry =
   | {
-      readonly kind: "received" | "sent";
+      readonly kind: "received" | "sent" | "instruction";
       readonly id: string;
       readonly at: string;
       readonly from: string;

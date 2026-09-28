@@ -85,7 +85,13 @@ export interface ProcessingResult {
   readonly summary: string;
 }
 
-/** Minimal classifier input: the email plus threading context flags. */
+/** One earlier turn. `sent` was already emailed; it is not an instruction. */
+export interface ClassifierTurn {
+  readonly role: "customer" | "operator" | "sent";
+  readonly text: string;
+}
+
+/** Classifier input: the current email, threading flags, and prior turns. */
 export interface ClassifierInput {
   readonly email: {
     readonly subject?: string;
@@ -93,6 +99,10 @@ export interface ClassifierInput {
     readonly inReplyTo?: string;
     readonly references?: readonly string[];
   };
+  /** Owner note to the assistant. Not a customer email and never a quote reply. */
+  readonly operatorInstruction?: boolean;
+  /** Earlier turns, oldest first. Context only; the current email is separate. */
+  readonly thread?: readonly ClassifierTurn[];
   /**
    * True when `inReplyTo`/`references` hit a stored outbound quote message
    * of this mailbox (quote versions land in slice 6; until then any stored

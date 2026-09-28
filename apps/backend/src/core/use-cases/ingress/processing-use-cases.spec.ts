@@ -373,6 +373,61 @@ describe("ProcessInboundMessage", () => {
       expect(h.drafts.rows).toHaveLength(0);
     }
   });
+
+  it("a later quote request with enough detail generates a quote", async () => {
+    const h = harness();
+    const first = await h.receive.run(email());
+    h.classifier.script({
+      lane: "quote",
+      confidence: "high",
+      summary: "Customer asks for another quote",
+      quoteRequest: { lines: [{ label: "Oven clean", ruleId: "oven_clean" }] },
+    });
+    const second = await h.receive.run(
+      email({
+        sourceMessageId: "src-2",
+        messageId: "<msg-2@customer.example>",
+        inReplyTo: "<msg-1@customer.example>",
+        text: "Please quote a regular clean of 2 bedrooms",
+        receivedAt: "2025-06-02T00:00:00.000Z",
+      }),
+    );
+    expect(second.processing).toBe("ready");
+    const thread = await h.getThread.run(ORG, first.conversationId);
+    expect(thread?.draft?.bodyText).toContain("Regular clean × 2");
+  });
+
+  it("a later quote request with a missing quantity asks the customer", async () => {
+    const h = harness();
+    const first = await h.receive.run(email());
+    h.classifier.script({
+      lane: "quote",
+      confidence: "high",
+      summary: "Quote for a commercial office",
+      quoteRequest: {
+        lines: [
+          { ruleId: "regular_clean", label: "Regular clean" },
+          { ruleId: "oven_clean", label: "Oven clean" },
+        ],
+      },
+    });
+    const second = await h.receive.run(
+      email({
+        sourceMessageId: "src-2",
+        messageId: "<msg-2@customer.example>",
+        inReplyTo: "<msg-1@customer.example>",
+        text: "Please give me a quote for a regular clean of 100 square meters",
+        receivedAt: "2025-06-02T00:00:00.000Z",
+      }),
+    );
+    expect(second.processing).toBe("needs_human");
+    const thread = await h.getThread.run(ORG, first.conversationId);
+    expect(thread?.draft?.bodyText).toContain(
+      "How many bedrooms should we allow for Regular clean?",
+    );
+    expect(thread?.draft?.bodyText).toContain("100 square meters");
+    expect(thread?.draft?.bodyText).not.toContain("Oven clean");
+  });
 });
 
 describe("RetryMessageProcessing", () => {

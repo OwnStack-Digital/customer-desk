@@ -27,6 +27,11 @@ const KB: KnowledgeBase = {
       tags: ["areas"],
       text: "We serve Balmain only. Fact token AREAS_TEXT.",
     },
+    {
+      id: "kb_services",
+      tags: ["commercial", "commercial cleaning", "services"],
+      text: "Yes, we do commercial cleaning. Fact token SERVICES_TEXT.",
+    },
   ],
 };
 
@@ -130,6 +135,80 @@ describe("VercelClassifier", () => {
     expect(prompt).toContain("clean");
   });
 
+  it("answers a service question from the matching fact, not service areas", async () => {
+    const { classifier, calls } = classifierWith(() => ({
+      lane: "faq",
+      confidence: "high",
+      summary: "Customer inquired about commercial cleaning service.",
+      faqFactIds: ["kb_areas"],
+    }));
+    const result = await classifier.classify({
+      email: {
+        subject: "Quote for an oven clean",
+        text: "Hi do you do commercial cleaning",
+      },
+      repliedToOutboundQuote: false,
+    });
+    expect(result).toEqual({
+      lane: "faq",
+      confidence: "high",
+      summary: "Customer inquired about commercial cleaning service.",
+      faqFactIds: ["kb_services"],
+    });
+    expect(calls[0]?.prompt).not.toContain("SERVICES_TEXT");
+    expect(calls[0]?.prompt).not.toContain("AREAS_TEXT");
+  });
+
+  it("does not let a subject quote replace a body question about a service", async () => {
+    const { classifier } = classifierWith(() => ({
+      lane: "quote",
+      confidence: "high",
+      summary: "Quote request",
+      quoteLines: [
+        { ruleId: "oven_clean", label: "Oven clean", quantity: null },
+      ],
+    }));
+    const result = await classifier.classify({
+      email: {
+        subject: "Quote for an oven clean",
+        text: "Hi do you do commercial cleaning",
+      },
+      repliedToOutboundQuote: false,
+    });
+    expect(result.lane).toBe("faq");
+    expect(result.faqFactIds).toEqual(["kb_services"]);
+    expect(result.quoteRequest).toBeUndefined();
+  });
+
+  it("drops an unrelated fact when a capability question has no matching block", async () => {
+    const { classifier } = classifierWith(() => ({
+      ...ok,
+      summary: "Asked about carpet steaming",
+      faqFactIds: ["kb_areas"],
+    }));
+    const result = await classifier.classify({
+      email: { subject: "Hello", text: "Do you do carpet steaming?" },
+      repliedToOutboundQuote: false,
+    });
+    expect(result).toMatchObject({
+      lane: "faq",
+      faqFactIds: [],
+    });
+  });
+
+  it("keeps a paraphrased fact when the email does not name a tag", async () => {
+    const { classifier } = classifierWith(() => ({
+      ...ok,
+      summary: "Asked when we close",
+      faqFactIds: ["kb_hours"],
+    }));
+    const result = await classifier.classify({
+      email: { subject: "Closing", text: "When do you finish for the day?" },
+      repliedToOutboundQuote: false,
+    });
+    expect(result.faqFactIds).toEqual(["kb_hours"]);
+  });
+
   it("complaint words override the model, including on a quote reply", async () => {
     const { classifier } = classifierWith(() => ({
       ...ok,
@@ -145,23 +224,50 @@ describe("VercelClassifier", () => {
     expect(result.quoteRequest).toBeUndefined();
   });
 
-  it("forces quote_reply when threading says so, and keeps a low confidence", async () => {
+  it("forces quote_reply only for a decision on a sent quote", async () => {
     const { classifier } = classifierWith(() => ({
       lane: "quote",
       confidence: "low",
       summary: "Maybe a change",
       quoteReplyIntent: "change",
     }));
-    const result = await classifier.classify({
-      email: { subject: "Re: quote", text: "can we move it" },
+    const followUp = await classifier.classify({
+      email: { subject: "Re: quote", text: "can we do 2 bedrooms instead" },
+      repliedToOutboundQuote: true,
+      thread: [{ role: "customer", text: "How much for an oven clean?" }],
+    });
+    expect(followUp.lane).toBe("quote");
+    expect(followUp.quoteReply).toBeUndefined();
+
+    const decision = await classifier.classify({
+      email: { subject: "Re: quote", text: "I accept" },
       repliedToOutboundQuote: true,
     });
-    expect(result).toEqual({
+    expect(decision).toMatchObject({
       lane: "quote_reply",
       confidence: "low",
-      summary: "Maybe a change",
       quoteReply: { intent: "change" },
     });
+  });
+
+  it("does not treat an owner instruction as a quote reply", async () => {
+    const { classifier, calls } = classifierWith(() => ({
+      lane: "quote",
+      confidence: "high",
+      summary: "Owner asked to redraft",
+      quoteLines: [{ label: "Oven clean", quantity: null }],
+    }));
+    const result = await classifier.classify({
+      email: { text: "Remove the oven and quote 2 bedrooms" },
+      operatorInstruction: true,
+      repliedToOutboundQuote: true,
+      thread: [{ role: "sent", text: "Here is your quote" }],
+    });
+    expect(result.lane).toBe("quote");
+    expect(result.quoteReply).toBeUndefined();
+    expect(calls[0]?.prompt).toContain("Owner instruction: yes");
+    expect(calls[0]?.prompt).toContain("Remove the oven and quote 2 bedrooms");
+    expect(calls[0]?.prompt).toContain("- sent:");
   });
 
   it("prices only a label that matches a rule, and drops invented quantities", async () => {

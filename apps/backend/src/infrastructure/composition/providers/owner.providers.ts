@@ -62,6 +62,10 @@ import {
   ListInbox,
 } from "../../../core/use-cases/inbox/list-inbox";
 import {
+  PROCESS_INBOUND_MESSAGE,
+  type ProcessInboundMessage,
+} from "../../../core/use-cases/ingress/process-inbound-message";
+import {
   GET_PRICE_CATALOG,
   GetPriceCatalog,
 } from "../../../core/use-cases/quotes/get-price-catalog";
@@ -70,9 +74,17 @@ import {
   ReviseDeclinedQuote,
 } from "../../../core/use-cases/quotes/revise-declined-quote";
 import {
+  INSTRUCT_ASSISTANT,
+  InstructAssistant,
+} from "../../../core/use-cases/review/instruct-assistant";
+import {
   LIST_OUTBOX,
   ListOutbox,
 } from "../../../core/use-cases/review/list-outbox";
+import {
+  RECEIVE_CUSTOMER_REPLY,
+  ReceiveCustomerReply,
+} from "../../../core/use-cases/review/receive-customer-reply";
 import {
   REVIEW_DRAFT,
   ReviewDraft,
@@ -274,6 +286,66 @@ export const ownerProviders: Provider[] = [
       MESSAGE_REPOSITORY,
       ORGANIZATION_PROFILE_REPOSITORY,
       UNIT_OF_WORK,
+      ID_GENERATOR,
+      CLOCK,
+    ],
+  },
+  {
+    provide: RECEIVE_CUSTOMER_REPLY,
+    useFactory: (
+      conversations: ConversationRepository,
+      messages: MessageRepository,
+      profile: OrganizationProfileRepository,
+      unitOfWork: UnitOfWork,
+      processing: ProcessInboundMessage,
+      ids: IdGenerator,
+      clock: Clock,
+    ): ReceiveCustomerReply =>
+      new ReceiveCustomerReply({
+        conversations,
+        messages,
+        profile,
+        unitOfWork,
+        processing,
+        ids,
+        clock,
+      }),
+    inject: [
+      CONVERSATION_REPOSITORY,
+      MESSAGE_REPOSITORY,
+      ORGANIZATION_PROFILE_REPOSITORY,
+      UNIT_OF_WORK,
+      PROCESS_INBOUND_MESSAGE,
+      ID_GENERATOR,
+      CLOCK,
+    ],
+  },
+  {
+    provide: INSTRUCT_ASSISTANT,
+    useFactory: (
+      conversations: ConversationRepository,
+      messages: MessageRepository,
+      profile: OrganizationProfileRepository,
+      unitOfWork: UnitOfWork,
+      processing: ProcessInboundMessage,
+      ids: IdGenerator,
+      clock: Clock,
+    ): InstructAssistant =>
+      new InstructAssistant({
+        conversations,
+        messages,
+        profile,
+        unitOfWork,
+        processing,
+        ids,
+        clock,
+      }),
+    inject: [
+      CONVERSATION_REPOSITORY,
+      MESSAGE_REPOSITORY,
+      ORGANIZATION_PROFILE_REPOSITORY,
+      UNIT_OF_WORK,
+      PROCESS_INBOUND_MESSAGE,
       ID_GENERATOR,
       CLOCK,
     ],

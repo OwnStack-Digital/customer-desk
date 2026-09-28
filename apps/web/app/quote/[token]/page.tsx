@@ -282,9 +282,17 @@ export default async function QuotePage({
             </p>
           )}
 
-          <h2 style={{ fontSize: "1rem", margin: "1.5rem 0 0.5rem" }}>
+          <h2
+            id="conversation"
+            style={{ fontSize: "1rem", margin: "1.5rem 0 0.5rem" }}
+          >
             Conversation ({result.messages.length})
           </h2>
+          <p
+            style={{ margin: "0 0 0.75rem", color: "#555", fontSize: "0.8rem" }}
+          >
+            The whole thread with the business, oldest first.
+          </p>
           {result.messages.length === 0 ? (
             <p style={{ color: "#555" }}>No messages yet.</p>
           ) : (
@@ -320,13 +328,18 @@ export default async function QuotePage({
                       }}
                     >
                       <span>
-                        <strong>{received ? "Sent by you" : "Received"}</strong>{" "}
-                        · {message.from}
+                        <strong>{received ? "You" : "Business"}</strong> ·{" "}
+                        {message.from}
                       </span>
                       <span style={{ whiteSpace: "nowrap" }}>
                         {formatDate(message.at)}
                       </span>
                     </div>
+                    {message.subject ? (
+                      <div style={{ margin: "0.45rem 0 0", fontWeight: 600 }}>
+                        {message.subject}
+                      </div>
+                    ) : null}
                     <p
                       style={{
                         margin: "0.5rem 0 0",
@@ -352,7 +365,7 @@ export default async function QuotePage({
                 fontWeight: 600,
               }}
             >
-              Send a message
+              Send a message as the customer
             </label>
             <p
               style={{
@@ -361,7 +374,8 @@ export default async function QuotePage({
                 fontSize: "0.8rem",
               }}
             >
-              Available whether you accept, decline, or are still deciding.
+              Adds your reply to this thread. You can write before or after you
+              accept or decline.
             </p>
             <textarea
               id="customer-message"

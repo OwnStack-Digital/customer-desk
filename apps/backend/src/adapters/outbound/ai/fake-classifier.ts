@@ -85,8 +85,9 @@ export class FakeClassifier implements ClassifierPort {
       return this.classificationFor("complaint", haystack, forcedLow, ask);
     }
 
-    // Rule 3: reply to a stored outbound quote message.
-    if (input.repliedToOutboundQuote) {
+    // Rule 3: reply to a stored outbound quote message. An owner
+    // instruction is not that reply — it is a request to redraft.
+    if (input.repliedToOutboundQuote && !input.operatorInstruction) {
       return this.classificationFor("quote_reply", haystack, forcedLow, ask);
     }
 
