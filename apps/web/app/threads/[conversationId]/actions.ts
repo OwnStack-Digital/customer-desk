@@ -44,8 +44,8 @@ async function callApi(
 }
 
 /** `redirect` only runs on the success path; TypeScript needs a return. */
-function back(conversationId: string): never {
-  redirect(`/threads/${conversationId}#conversation`);
+function back(conversationId: string, anchor = "draft"): never {
+  redirect(`/threads/${conversationId}#${anchor}`);
 }
 
 export async function approveDraft(formData: FormData): Promise<void> {
@@ -185,7 +185,7 @@ export async function sendOperatorMessage(formData: FormData): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ text }),
   });
-  back(conversationId);
+  back(conversationId, "conversation");
 }
 
 /** Stores a customer reply on this thread and processes it. */
@@ -221,5 +221,5 @@ export async function takeOverConversation(formData: FormData): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
   });
-  back(conversationId);
+  back(conversationId, "conversation-control");
 }

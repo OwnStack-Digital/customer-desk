@@ -1,22 +1,16 @@
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata = {
-  title: "BOS",
-  description: "OwnStack BOS operator console",
+  title: "OwnStack — Your customer workspace",
+  description:
+    "A clear, calm workspace for customer conversations, replies and quotes.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          fontFamily:
-            "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        }}
-      >
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

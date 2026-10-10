@@ -1,145 +1,127 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Icon } from "../../components/icon";
+import { RefreshButton } from "../../components/refresh-button";
+import { Avatar, Badge, EmptyState } from "../../components/ui";
+import { Workspace } from "../../components/workspace";
 import {
   BosApiError,
   bosApi,
-  type OutboxItem,
-  type OutboxPage as OutboxPageData,
+  type OutboxPage as OutboxData,
 } from "../../lib/bos-api";
+import { formatTime } from "../../lib/presentation";
 
-export const metadata = { title: "Outbox — BOS" };
+export const metadata = { title: "Outbox — OwnStack" };
 
-type OutboxLoad = OutboxPageData | "login" | "error";
-
-async function loadOutbox(): Promise<OutboxLoad> {
+export default async function OutboxPage() {
   const session = (await cookies()).get("bos_session")?.value;
-  if (!session) {
-    return "login";
-  }
+  if (!session) redirect("/login");
+  let result: OutboxData | undefined;
   try {
-    return await bosApi<OutboxPageData>("/outbox", {
+    result = await bosApi<OutboxData>("/outbox", {
       headers: { cookie: `bos_session=${session}` },
     });
   } catch (error) {
-    if (error instanceof BosApiError && error.status === 401) {
-      return "login";
-    }
-    return "error";
-  }
-}
-
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function OutboxRow({ item }: { item: OutboxItem }) {
-  return (
-    <li
-      style={{
-        border: "1px solid #e2e2e2",
-        borderRadius: "8px",
-        padding: "0.75rem",
-        background: "#fff",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <a
-          href={`/threads/${item.conversationId}`}
-          style={{ color: "#1a1a1a", fontWeight: 600 }}
-        >
-          {item.recipient}
-        </a>
-        <span
-          style={{ color: "#555", fontSize: "0.8rem", whiteSpace: "nowrap" }}
-        >
-          {formatTime(item.createdAt)}
-        </span>
-      </div>
-      <div
-        style={{
-          marginTop: "0.25rem",
-          fontSize: "0.75rem",
-          color: "#777",
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <span>Status: {item.status}</span>
-        <span>Attempts: {item.attempts}</span>
-      </div>
-      {/* Last error column: empty in the happy path. */}
-      {item.lastError ? (
-        <p
-          style={{
-            margin: "0.5rem 0 0",
-            color: "#b00020",
-            fontSize: "0.85rem",
-            wordBreak: "break-word",
-          }}
-        >
-          Last error: {item.lastError}
-        </p>
-      ) : (
-        <p style={{ margin: "0.5rem 0 0", color: "#777", fontSize: "0.75rem" }}>
-          No errors
-        </p>
-      )}
-    </li>
-  );
-}
-
-export default async function OutboxPage() {
-  const result = await loadOutbox();
-  if (result === "login") {
-    redirect("/login");
+    if (error instanceof BosApiError && error.status === 401)
+      redirect("/login");
   }
   return (
-    <main
-      style={{ maxWidth: "640px", margin: "0 auto", padding: "1.5rem 1rem" }}
-    >
-      <a href="/inbox" style={{ fontSize: "0.9rem" }}>
-        ← Inbox
-      </a>
-      <h1 style={{ fontSize: "1.25rem", margin: "0.75rem 0 0" }}>Outbox</h1>
-      <p style={{ color: "#555", fontSize: "0.85rem" }}>
-        Queued replies. Nothing has been delivered yet — the demonstrator
-        records what is ready to send.
-      </p>
-      {result === "error" ? (
-        <p style={{ color: "#b00020" }}>
-          The outbox is unavailable right now. Please try again in a moment.
-        </p>
-      ) : result.items.length === 0 ? (
-        <p style={{ color: "#555" }}>
-          No queued replies. Approve and send a draft to see it here.
-        </p>
-      ) : (
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-            margin: "0.75rem 0 0",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.5rem",
-          }}
-        >
-          {result.items.map((item) => (
-            <OutboxRow key={item.messageId} item={item} />
-          ))}
-        </ul>
-      )}
-    </main>
+    <Workspace active="outbox" section="Outbox">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">OUTGOING CONVERSATIONS</p>
+          <h1>
+            Outbox<span className="heading-dot">.</span>
+          </h1>
+          <p>A clear record of the replies you’ve approved and queued.</p>
+        </div>
+        <RefreshButton />
+      </div>
+      <div className="notice notice-green outbox-notice">
+        <Icon name="shield" />
+        <div>
+          <strong>You’re in demo mode</strong>
+          <p>
+            Messages are recorded here, not delivered to customers. You can
+            safely explore the review and send workflow.
+          </p>
+        </div>
+      </div>
+      <section className="panel">
+        <div className="panel-heading">
+          <div className="section-title">
+            <Icon name="send" />
+            <h2>Outgoing messages</h2>
+          </div>
+          {result ? <Badge>{result.items.length} total</Badge> : null}
+        </div>
+        {!result ? (
+          <EmptyState
+            icon="alert"
+            title="We couldn’t load the outbox"
+            description="Please refresh the page in a moment."
+          />
+        ) : !result.items.length ? (
+          <EmptyState
+            icon="send"
+            title="Nothing queued just yet"
+            description="Review a draft in your inbox, approve it, then send it. Your outgoing message will appear here."
+          >
+            <Link href="/inbox" className="button button-primary">
+              Go to inbox
+              <Icon name="arrow" size={16} />
+            </Link>
+          </EmptyState>
+        ) : (
+          <ul className="outbox-list">
+            {result.items.map((item) => (
+              <li key={item.messageId}>
+                <Avatar name={item.recipient} />
+                <div className="outbox-item-body">
+                  <div className="row-heading">
+                    <Link href={`/threads/${item.conversationId}`}>
+                      {item.recipient}
+                    </Link>
+                    <time dateTime={item.createdAt}>
+                      {formatTime(item.createdAt)}
+                    </time>
+                  </div>
+                  <div className="row-tags">
+                    <Badge
+                      tone={
+                        item.status === "failed" || item.status === "uncertain"
+                          ? "red"
+                          : item.status === "sent"
+                            ? "green"
+                            : "amber"
+                      }
+                    >
+                      {item.status}
+                    </Badge>
+                    <span className="small muted">
+                      {item.attempts} delivery attempt
+                      {item.attempts === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {item.lastError ? (
+                    <p className="error-text small">{item.lastError}</p>
+                  ) : (
+                    <p className="small muted">No delivery errors recorded.</p>
+                  )}
+                </div>
+                <Link
+                  className="icon-button"
+                  href={`/threads/${item.conversationId}`}
+                  aria-label={`Open conversation with ${item.recipient}`}
+                >
+                  <Icon name="chevron" size={18} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </Workspace>
   );
 }

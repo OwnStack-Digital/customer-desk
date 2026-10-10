@@ -1,53 +1,11 @@
+import { Icon } from "../../../components/icon";
+import { SubmitButton } from "../../../components/submit-button";
+import { Badge, Brand, EmptyState } from "../../../components/ui";
 import { BosApiError, bosApi, type PublicQuote } from "../../../lib/bos-api";
+import { formatMoney, formatTime } from "../../../lib/presentation";
 import { acceptQuote, declineQuote, sendCustomerMessage } from "./actions";
 
-export const metadata = { title: "Your quote — BOS" };
-
-type QuoteLoad = PublicQuote | "not-found" | "error";
-
-async function loadQuote(token: string): Promise<QuoteLoad> {
-  try {
-    return await bosApi<PublicQuote>(`/public/quotes/${token}`);
-  } catch (error) {
-    if (error instanceof BosApiError && error.status === 404) {
-      return "not-found";
-    }
-    return "error";
-  }
-}
-
-function formatMinor(currency: string, amountMinor: number): string {
-  return `${currency} ${(amountMinor / 100).toFixed(2)}`;
-}
-
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" });
-}
-
-const buttonStyle = {
-  padding: "0.5rem 1rem",
-  borderRadius: "8px",
-  border: "1px solid #1a1a1a",
-  background: "#1a1a1a",
-  color: "#fff",
-  fontSize: "0.9rem",
-  cursor: "pointer",
-} as const;
-
-const secondaryButtonStyle = {
-  ...buttonStyle,
-  background: "#fff",
-  color: "#1a1a1a",
-} as const;
-
-const listStyle = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-} as const;
+export const metadata = { title: "Your quote — OwnStack" };
 
 export default async function QuotePage({
   params,
@@ -58,350 +16,235 @@ export default async function QuotePage({
 }) {
   const { token } = await params;
   const { error } = await searchParams;
-  const result = await loadQuote(token);
-
+  let result: PublicQuote | undefined;
+  let notFound = false;
+  try {
+    result = await bosApi<PublicQuote>(`/public/quotes/${token}`);
+  } catch (error) {
+    notFound = error instanceof BosApiError && error.status === 404;
+  }
   return (
-    <main
-      style={{ maxWidth: "640px", margin: "0 auto", padding: "1.5rem 1rem" }}
-    >
-      {result === "not-found" ? (
-        <section>
-          <h1 style={{ fontSize: "1.2rem", margin: "0 0 0.5rem" }}>
-            Quote not found
-          </h1>
-          <p style={{ color: "#555" }}>
-            This link is unknown, expired, or no longer valid.
-          </p>
-        </section>
-      ) : result === "error" ? (
-        <p style={{ color: "#b00020" }}>
-          This quote is unavailable right now. Please try again in a moment.
-        </p>
+    <main className="public-page">
+      <header className="public-header">
+        <Brand />
+        <span className="small muted">Your customer portal</span>
+      </header>
+      {!result ? (
+        <div className="panel">
+          <EmptyState
+            icon={notFound ? "quote" : "alert"}
+            title={
+              notFound
+                ? "This quote isn’t available"
+                : "We couldn’t load your quote"
+            }
+            description={
+              notFound
+                ? "The link may have expired or been replaced. Please contact the business for an updated quote."
+                : "Please try again in a moment."
+            }
+          />
+        </div>
       ) : (
-        <section>
-          <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.25rem" }}>
-            {result.businessName}
-          </h1>
-          <p style={{ color: "#555", fontSize: "0.9rem", margin: 0 }}>
-            Your quote
-          </p>
-
+        <>
+          <div className="public-title">
+            <p className="eyebrow">PREPARED FOR YOU</p>
+            <h1>{result.businessName}</h1>
+            <p>Your quote, with every detail in one place.</p>
+          </div>
           {error ? (
-            <p
-              style={{
-                margin: "0.75rem 0 0",
-                padding: "0.5rem 0.75rem",
-                border: "1px solid #b00020",
-                borderRadius: "8px",
-                background: "#fff5f6",
-                color: "#b00020",
-                wordBreak: "break-word",
-              }}
-            >
+            <div className="notice notice-red" role="alert">
               {error}
-            </p>
+            </div>
           ) : null}
-
-          {/* Status: only sent/accepted/declined are ever displayed; an
-              expired or superseded token is a 404 above. */}
-          {result.status === "accepted" ? (
-            <p
-              style={{
-                color: "#2e7d32",
-                fontWeight: 600,
-                margin: "0.75rem 0 0",
-              }}
-            >
-              You accepted this quote.
-            </p>
-          ) : result.status === "declined" ? (
-            <p
-              style={{ color: "#555", fontWeight: 600, margin: "0.75rem 0 0" }}
-            >
-              You declined this quote.
-            </p>
-          ) : (
-            <p style={{ color: "#555", margin: "0.75rem 0 0" }}>
-              Valid until {formatDate(result.validUntil)}.
-            </p>
-          )}
-
-          <ul style={{ ...listStyle, marginTop: "1rem" }}>
-            {result.lines
-              .filter((line) => line.includedInTotal !== false)
-              .map((line) => (
-                <li
-                  key={`${line.name}-${line.quantity ?? 1}`}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "0.75rem",
-                    padding: "0.4rem 0",
-                    borderBottom: "1px solid #eee",
-                    fontSize: "0.95rem",
-                  }}
-                >
-                  <span>
-                    {line.name}
-                    {line.quantity ? ` × ${line.quantity}` : ""}
-                  </span>
-                  <span style={{ whiteSpace: "nowrap" }}>
-                    {formatMinor(result.currency, line.amountMinor)}
-                  </span>
-                </li>
-              ))}
-          </ul>
-          {result.lines.some((line) => line.includedInTotal === false) ? (
-            <>
-              <h2 style={{ fontSize: "0.9rem", margin: "1rem 0 0" }}>
-                Each following visit
-              </h2>
-              <p
-                style={{
-                  color: "#555",
-                  margin: "0.25rem 0 0",
-                  fontSize: "0.85rem",
-                }}
+          <section className="panel public-quote">
+            <div className="panel-heading">
+              <div className="section-title">
+                <Icon name="quote" />
+                <h2>Your quote</h2>
+              </div>
+              <Badge
+                tone={
+                  result.status === "accepted"
+                    ? "green"
+                    : result.status === "declined"
+                      ? "neutral"
+                      : "amber"
+                }
               >
-                Not included in the total.
+                {result.status === "sent"
+                  ? "Awaiting your decision"
+                  : result.status}
+              </Badge>
+            </div>
+            <div className="panel-body stack-lg">
+              <p className="muted">
+                {result.status === "accepted"
+                  ? "Thank you. You’ve accepted this quote."
+                  : result.status === "declined"
+                    ? "You’ve declined this quote. You can still send us a message below."
+                    : `Valid until ${formatTime(result.validUntil)} (Sydney time).`}
               </p>
-              <ul style={{ ...listStyle, marginTop: "0.35rem" }}>
+              <ul className="price-lines">
                 {result.lines
-                  .filter((line) => line.includedInTotal === false)
+                  .filter((line) => line.includedInTotal !== false)
                   .map((line) => (
-                    <li
-                      key={`later-${line.name}-${line.quantity ?? 1}`}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "0.75rem",
-                        padding: "0.4rem 0",
-                        borderBottom: "1px solid #eee",
-                        fontSize: "0.95rem",
-                      }}
-                    >
+                    <li key={`${line.name}-${line.quantity ?? 1}`}>
                       <span>
                         {line.name}
                         {line.quantity ? ` × ${line.quantity}` : ""}
                       </span>
-                      <span style={{ whiteSpace: "nowrap" }}>
-                        {formatMinor(result.currency, line.amountMinor)}
-                      </span>
+                      <strong>
+                        {formatMoney(result.currency, line.amountMinor)}
+                      </strong>
                     </li>
                   ))}
               </ul>
-            </>
-          ) : null}
-
-          {result.assumptions.length > 0 ? (
-            <div style={{ marginTop: "0.75rem" }}>
-              <h2 style={{ fontSize: "0.9rem", margin: "0 0 0.25rem" }}>
-                Assumptions
-              </h2>
-              <ul style={{ ...listStyle, color: "#555", fontSize: "0.85rem" }}>
-                {result.assumptions.map((assumption) => (
-                  <li key={assumption} style={{ margin: "0.2rem 0" }}>
-                    {assumption}
+              {result.lines.some((line) => line.includedInTotal === false) ? (
+                <div className="recurring-lines">
+                  <h3>Each following visit</h3>
+                  <p className="small muted">
+                    Not included in the total below.
+                  </p>
+                  <ul className="price-lines">
+                    {result.lines
+                      .filter((line) => line.includedInTotal === false)
+                      .map((line) => (
+                        <li key={`${line.name}-${line.quantity ?? 1}`}>
+                          <span>
+                            {line.name}
+                            {line.quantity ? ` × ${line.quantity}` : ""}
+                          </span>
+                          <strong>
+                            {formatMoney(result.currency, line.amountMinor)}
+                          </strong>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+              {result.assumptions.length ? (
+                <div className="notice notice-amber">
+                  <strong>Good to know</strong>
+                  <ul>
+                    {result.assumptions.map((assumption) => (
+                      <li key={assumption}>{assumption}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <dl className="quote-totals">
+                <div>
+                  <dt>Subtotal</dt>
+                  <dd>{formatMoney(result.currency, result.subtotalMinor)}</dd>
+                </div>
+                <div>
+                  <dt>Tax</dt>
+                  <dd>{formatMoney(result.currency, result.taxMinor)}</dd>
+                </div>
+                <div className="quote-total">
+                  <dt>Total</dt>
+                  <dd>{formatMoney(result.currency, result.totalMinor)}</dd>
+                </div>
+              </dl>
+              {result.canDecide ? (
+                <div className="actions-row">
+                  <form action={acceptQuote}>
+                    <input type="hidden" name="token" value={token} />
+                    <SubmitButton
+                      pendingLabel="Accepting…"
+                      confirmMessage="Accept this quote?"
+                    >
+                      <Icon name="check" size={16} />
+                      Accept quote
+                    </SubmitButton>
+                  </form>
+                  <form action={declineQuote}>
+                    <input type="hidden" name="token" value={token} />
+                    <SubmitButton
+                      variant="secondary"
+                      pendingLabel="Recording…"
+                      confirmMessage="Decline this quote?"
+                    >
+                      Decline quote
+                    </SubmitButton>
+                  </form>
+                </div>
+              ) : (
+                <p className="small muted">
+                  This quote is read-only. You can still send a message below.
+                </p>
+              )}
+            </div>
+          </section>
+          <section className="panel" id="conversation">
+            <div className="panel-heading">
+              <div className="section-title">
+                <Icon name="mail" />
+                <h2>Your conversation</h2>
+              </div>
+              <Badge>{result.messages.length} messages</Badge>
+            </div>
+            {result.messages.length ? (
+              <ul className="timeline">
+                {result.messages.map((message) => (
+                  <li
+                    key={message.id}
+                    className={`timeline-message ${message.direction === "inbound" ? "message-sent" : "message-received"}`}
+                  >
+                    <div className="message-meta">
+                      <strong>
+                        {message.direction === "inbound"
+                          ? "You"
+                          : result.businessName}
+                      </strong>
+                      <time dateTime={message.at}>
+                        {formatTime(message.at)}
+                      </time>
+                    </div>
+                    {message.subject ? <h3>{message.subject}</h3> : null}
+                    <p className="message-text">
+                      {message.text || "No text body."}
+                    </p>
                   </li>
                 ))}
               </ul>
-            </div>
-          ) : null}
-
-          <dl
-            style={{
-              margin: "1rem 0 0",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.25rem",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <dt style={{ color: "#555" }}>Subtotal</dt>
-              <dd style={{ margin: 0 }}>
-                {formatMinor(result.currency, result.subtotalMinor)}
-              </dd>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <dt style={{ color: "#555" }}>Tax</dt>
-              <dd style={{ margin: 0 }}>
-                {formatMinor(result.currency, result.taxMinor)}
-              </dd>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: 600,
-                borderTop: "1px solid #1a1a1a",
-                marginTop: "0.25rem",
-                paddingTop: "0.25rem",
-              }}
+            ) : (
+              <p className="panel-body muted">
+                No messages yet. Ask a question below.
+              </p>
+            )}
+            <form
+              action={sendCustomerMessage}
+              className="panel-body stack public-message-form"
             >
-              <dt>Total</dt>
-              <dd style={{ margin: 0 }}>
-                {formatMinor(result.currency, result.totalMinor)}
-              </dd>
-            </div>
-          </dl>
-
-          {/* Explicit form buttons — not links — so deciding requires an
-              intentional POST. Read-only once decided or expired. */}
-          {result.canDecide ? (
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                flexWrap: "wrap",
-                marginTop: "1.25rem",
-              }}
-            >
-              <form action={acceptQuote}>
-                <input type="hidden" name="token" value={token} />
-                <button type="submit" style={buttonStyle}>
-                  Accept quote
-                </button>
-              </form>
-              <form action={declineQuote}>
-                <input type="hidden" name="token" value={token} />
-                <button type="submit" style={secondaryButtonStyle}>
-                  Decline quote
-                </button>
-              </form>
-            </div>
-          ) : (
-            <p
-              style={{
-                marginTop: "1.25rem",
-                color: "#777",
-                fontSize: "0.85rem",
-              }}
-            >
-              This quote can no longer be decided from this link. You can still
-              send a message.
-            </p>
-          )}
-
-          <h2
-            id="conversation"
-            style={{ fontSize: "1rem", margin: "1.5rem 0 0.5rem" }}
-          >
-            Conversation ({result.messages.length})
-          </h2>
-          <p
-            style={{ margin: "0 0 0.75rem", color: "#555", fontSize: "0.8rem" }}
-          >
-            The whole thread with the business, oldest first.
-          </p>
-          {result.messages.length === 0 ? (
-            <p style={{ color: "#555" }}>No messages yet.</p>
-          ) : (
-            <ul
-              style={{
-                ...listStyle,
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-              }}
-            >
-              {result.messages.map((message) => {
-                const received = message.direction === "inbound";
-                return (
-                  <li
-                    key={message.id}
-                    style={{
-                      alignSelf: received ? "flex-end" : "flex-start",
-                      width: "min(100%, 34rem)",
-                      border: `1px solid ${received ? "#cfe3d4" : "#d7d7d7"}`,
-                      borderRadius: "8px",
-                      padding: "0.75rem",
-                      background: received ? "#f3faf4" : "#f5f5f5",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "0.5rem",
-                        fontSize: "0.8rem",
-                        color: "#555",
-                      }}
-                    >
-                      <span>
-                        <strong>{received ? "You" : "Business"}</strong> ·{" "}
-                        {message.from}
-                      </span>
-                      <span style={{ whiteSpace: "nowrap" }}>
-                        {formatDate(message.at)}
-                      </span>
-                    </div>
-                    {message.subject ? (
-                      <div style={{ margin: "0.45rem 0 0", fontWeight: 600 }}>
-                        {message.subject}
-                      </div>
-                    ) : null}
-                    <p
-                      style={{
-                        margin: "0.5rem 0 0",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {message.text || "(no text body)"}
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          <form action={sendCustomerMessage} style={{ marginTop: "1rem" }}>
-            <input type="hidden" name="token" value={token} />
-            <label
-              htmlFor="customer-message"
-              style={{
-                display: "block",
-                fontSize: "0.9rem",
-                fontWeight: 600,
-              }}
-            >
-              Send a message as the customer
-            </label>
-            <p
-              style={{
-                margin: "0.25rem 0 0.5rem",
-                color: "#555",
-                fontSize: "0.8rem",
-              }}
-            >
-              Adds your reply to this thread. You can write before or after you
-              accept or decline.
-            </p>
-            <textarea
-              id="customer-message"
-              name="text"
-              required
-              rows={4}
-              placeholder="Write to the business…"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "0.5rem",
-                borderRadius: "8px",
-                border: "1px solid #e2e2e2",
-                fontFamily: "inherit",
-                fontSize: "0.9rem",
-              }}
-            />
-            <button
-              type="submit"
-              style={{ ...buttonStyle, marginTop: "0.5rem" }}
-            >
-              Send message
-            </button>
-          </form>
-        </section>
+              <input type="hidden" name="token" value={token} />
+              <label htmlFor="customer-message">
+                Have a question? Send a message.
+              </label>
+              <p className="small muted">
+                Your reply stays in this conversation, before or after your
+                decision.
+              </p>
+              <textarea
+                id="customer-message"
+                name="text"
+                required
+                rows={4}
+                placeholder="Write to the team…"
+              />
+              <SubmitButton pendingLabel="Sending…">
+                <Icon name="send" size={16} />
+                Send message
+              </SubmitButton>
+            </form>
+          </section>
+        </>
       )}
+      <footer className="public-footer">
+        <Icon name="shield" size={15} />
+        Powered by OwnStack · Clear quotes. Real conversations.
+      </footer>
     </main>
   );
 }
