@@ -260,10 +260,24 @@ describe("GetThread", () => {
     );
     // Processing comes from the latest revision of the latest message.
     expect(thread?.processing).toEqual({
-      status: "ready",
+      status: "needs_human",
       lane: "quote",
-      summary: "Quote request",
+      summary: "Quote request cannot be priced: No work items to price.",
     });
+    expect(thread?.draft).toMatchObject({
+      status: "proposed",
+      bodyText:
+        "Thanks for asking for a quote. We need a little more information before we can price it.\n- Could you clarify this: No work items to price.",
+    });
+    // The earlier oven quote remains visible; the empty follow-up creates no new quote.
+    expect(h.quotes.rows).toHaveLength(1);
+    expect(thread?.quote).toMatchObject({
+      status: "prepared",
+      totalMinor: 7150,
+      lines: [{ ruleId: "oven_clean", name: "Oven clean", amountMinor: 6500 }],
+    });
+    expect(thread?.draft?.totalMinor).toBeUndefined();
+    expect(h.outbox.rows).toHaveLength(0);
   });
 
   it("resolves an unknown conversation to undefined", async () => {

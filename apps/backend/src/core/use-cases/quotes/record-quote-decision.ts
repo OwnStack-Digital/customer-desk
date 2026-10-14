@@ -214,9 +214,7 @@ function publicQuoteOf(
       name: line.name,
       ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
       amountMinor: line.amountMinor,
-      ...(line.includedInTotal === false
-        ? { includedInTotal: false }
-        : {}),
+      ...(line.includedInTotal === false ? { includedInTotal: false } : {}),
     })),
     assumptions: [...quote.assumptions],
     subtotalMinor: quote.subtotalMinor,

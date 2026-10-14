@@ -70,7 +70,8 @@ beforeAll(async () => {
     imports: [AppModule],
   }).compile();
   app = moduleRef.createNestApplication();
-  await app.init();
+  // Own the fixture server lifetime; do not auto-open/close it per request.
+  await app.listen(0, "127.0.0.1");
 });
 
 afterAll(async () => {

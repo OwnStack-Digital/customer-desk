@@ -78,7 +78,8 @@ beforeAll(async () => {
     imports: [AppModule],
   }).compile();
   app = moduleRef.createNestApplication();
-  await app.init();
+  // Own the fixture server lifetime; do not auto-open/close it per request.
+  await app.listen(0, "127.0.0.1");
 });
 
 afterAll(async () => {
@@ -116,6 +117,10 @@ async function ingestQuote(sourceMessageId: string) {
       }),
     );
   expect(response.status).toBe(201);
+  expect(
+    response.body.processing,
+    `Receipt processing for ${sourceMessageId}`,
+  ).toBe("ready");
   return response.body as { conversationId: string };
 }
 

@@ -234,8 +234,8 @@ export class ProcessInboundMessage {
           // Task 4.2: the FAQ lane records one `proposed` draft revision.
           await this.insertFaqDraft(organizationId, message, classification);
         } else if (classification.lane === "quote") {
-          // Slice 6: price the extracted request in code; unpriceable
-          // work parks with a human — it never produces a draft.
+          // Price in code; unpriceable work needs human review and gets
+          // only a proposed clarification draft, never a priced quote.
           const priced = buildQuote(this.deps.priceList.getPriceList(), {
             lines: classification.quoteRequest?.lines ?? [],
           });

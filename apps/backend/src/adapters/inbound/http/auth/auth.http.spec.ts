@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { INestApplication } from "@nestjs/common";
+import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -56,7 +57,8 @@ beforeAll(async () => {
     imports: [AppModule],
   }).compile();
   app = moduleRef.createNestApplication();
-  await app.init();
+  // Own the fixture server lifetime; do not auto-open/close it per request.
+  await app.listen(0, "127.0.0.1");
 });
 
 afterAll(async () => {
@@ -89,6 +91,7 @@ describe("one-org auth over HTTP", () => {
       .mockImplementation(() => true);
     let sessionToken = "";
     let setCookie = "";
+    let logged = "";
     try {
       const login = await request(app.getHttpServer())
         .post("/auth/login")
@@ -110,13 +113,13 @@ describe("one-org auth over HTTP", () => {
       expect(inbox.status).toBe(200);
       expect(inbox.body).toEqual({ items: [] });
     } finally {
-      const logged = stdout.mock.calls.map((call) => String(call[0])).join("");
+      logged = stdout.mock.calls.map((call) => String(call[0])).join("");
       stdout.mockRestore();
-      expect(logged).not.toContain(sessionToken);
-      expect(logged).not.toContain(
-        createHash("sha256").update(sessionToken).digest("hex"),
-      );
     }
+    // Cleanup must preserve an earlier failure, not assert against an empty token.
+    const sessionHash = createHash("sha256").update(sessionToken).digest("hex");
+    expect(logged).not.toContain(sessionToken);
+    expect(logged).not.toContain(sessionHash);
 
     // The database stores only the SHA-256 hash of the cookie id.
     const db = app.get(PERSISTENCE_CLIENT) as ReturnType<
@@ -124,11 +127,10 @@ describe("one-org auth over HTTP", () => {
     >;
     const rows = await (db.open() as SqliteDb)
       .select()
-      .from(sqliteOperatorSessions);
+      .from(sqliteOperatorSessions)
+      .where(eq(sqliteOperatorSessions.tokenHash, sessionHash));
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.tokenHash).toBe(
-      createHash("sha256").update(sessionToken).digest("hex"),
-    );
+    expect(rows[0]?.tokenHash).toBe(sessionHash);
     expect(rows[0]?.tokenHash).not.toBe(sessionToken);
     expect(rows[0]?.revokedAt).toBeNull();
   });

@@ -1,137 +1,168 @@
-# BOS (v3)
+# OwnStack Customer Desk — proprietary public preview
 
-One organization's email operations: inbound email → classified work →
-reviewed, approved replies and quotes. Monorepo layout:
+**AI prepares customer-email work. People review, approve, and decide.**
 
-```
-apps/backend   BOS API + application core (NestJS on Node.js)
-apps/web       Operator UI + public quote pages (Next.js App Router)
-config/        Tenant configuration JSON (validated at boot, fails closed)
-docs/          Product, architecture, and plan documents
-scripts/       Repo-level tooling (architecture dependency check, dev runner)
-```
+Customer Desk (internally BOS) is an early, single-organization operations
+workspace: normalized inbound
+email becomes a classified conversation, a suggested reply, a price-list-based
+quote, or a request for human attention. This repository is a **local evaluation
+preview**, not a production deployment guide.
 
-## Prerequisites
+## See the workflow
 
-- [Bun](https://bun.com) 1.3+ — package manager and script runner
-- Node.js 24 — backend and web runtime (never run Nest on the Bun runtime)
-- Docker — local PostgreSQL only
+Actual UI captures from a local demo with synthetic customers and a fictional
+cleaning business (not mockups):
 
-## Install
+![Operator conversation with a priced quote and reply awaiting approval](docs/assets/operator-thread.png)
 
-```sh
-bun install
-cp .env.example .env   # fill in secrets locally; never commit them
-```
+![Customer quote page after acceptance, with configured line items and tax](docs/assets/customer-quote.png)
 
-## Local PostgreSQL
+The narrated demo uses live AI; the quickstart below uses deterministic fake AI
+and needs **no external API key**. Video is available locally as
+`artifacts/demo/ownstack-demo.mp4` when generated, or as a release asset if one is
+published. It is not included in Git. See [demo notes and reproduction](docs/demo/README.md).
 
-```sh
-docker compose up -d       # PostgreSQL 17 on 127.0.0.1:5432, db/user/pass: bos
-bun run db:migrate         # applies migrations for DB_DIALECT (postgres default)
-```
+## What works — and what does not
 
-## Owner login
+- Inbox classification, thread summaries, human-review filters, and complaint escalation.
+- Replies grounded in configured knowledge-base facts; prices and tax calculated
+  in application code, not invented by the model.
+- Draft editing, internal assistant instructions, explicit approval, then a
+  separate action to queue a message in the outbox.
+- Token-based customer quote pages: accept, decline, and send a question.
+- Service requests captured as internal notes; operator takeover pauses automation.
+- Normalized ingress with replay deduplication and reference-based threading.
 
-On boot, when no operator credentials exist, the backend seeds one owner
-from `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` (see `.env.example`). Sign in
-at the web app's `/login`; the session cookie lasts 7 days.
+**Queueing is not email delivery.** There is no mailbox sync or delivery worker.
+Service notes do not change calendars; quote acceptance is not booking or payment.
+Unknown work or missing quantities need human review and may create a proposed
+clarification draft, not a priced quote. Fake AI is a development fixture, not a
+quality benchmark for live models. See [preview limitations and publication checklist](docs/PREVIEW.md).
 
-## Inbound email
+## Local quickstart (Docker-free)
 
-`POST /inbound/emails` accepts the normalized `InboundEmail` DTO behind
-`Authorization: Bearer <BOS_INGRESS_KEY>` (constant-time compare). A new
-message returns **201** `{ messageId, conversationId, duplicate: false,
-processing }` — `processing` is the post-commit status (`ready`,
-`needs_human`, or `failed`); a processing failure still returns 201. A
-replay of the same `(mailboxId, sourceMessageId)` returns **200** with the
-original ids and `duplicate: true` and does not restart processing. The
-body's `mailboxId` must equal the configured mailbox id (else 422).
-Threads form only via `inReplyTo` / `references` against stored RFC
-Message-IDs in the same mailbox.
+Requirements: **Node.js 24, latest patch** (locally tested with 24.11.0), **Bun 1.3.13**, and a shell.
+Bun installs dependencies and runs scripts; NestJS and Next.js run on Node, not the
+Bun runtime. SQLite is for local evaluation/tests only.
 
-## Processing
+From the repository root, in **Bash**:
 
-Every inbound message is processed after its receipt commits: the
-classifier assigns a lane, and one `processing_revisions` row records
-each attempt (`pending → processing → ready | needs_human | failed`).
-Complaints are urgent and always `needs_human`; low confidence and the
-`other` lane go to a human; noise parks as `ready` with no draft. The
-owner inbox filters are `GET /inbox?filter=all|needs_human|complaints`
-(invalid filter → 422), and threads show lane, status, and summary.
-`POST /messages/:messageId/retry-processing` (session required) appends a
-new revision and is a no-op while one is already `processing`.
+```bash
+bun install --frozen-lockfile
+# Optional template; never overwrite an existing local file.
+[ -e .env ] || cp .env.example .env
 
-`AI_ADAPTER=fake` (the default, also used when unset) is deterministic and
-makes no network call. `AI_ADAPTER=vercel` uses the Vercel AI SDK. An
-OpenAI key (`OPENAI_API_KEY`, or an `sk-` value in `AI_GATEWAY_API_KEY`)
-calls OpenAI directly. Any other key uses the Vercel AI Gateway. It still
-cannot set a price or invent a business fact: quote totals come from the
-price list, FAQ bodies come from knowledge-block ids, and anything
-commercial still needs approval. Set `AI_MODEL` to `openai/gpt-4.1-mini`
-(or another Gateway id). Anything other than `fake` or `vercel` fails boot.
+# Explicit exports override any existing local .env (including live AI).
+export AI_ADAPTER=fake
+export DB_DIALECT=sqlite
+export DATABASE_URL="$PWD/bos-preview.sqlite"
+export BOS_OWNER_EMAIL=owner@example.test
+read -r -s -p "Choose a local owner password: " BOS_OWNER_PASSWORD
+export BOS_OWNER_PASSWORD
+printf '\n'
+export BOS_INGRESS_KEY="$(openssl rand -hex 32)"
+export PORT=3001 WEB_PORT=3000
+export BOS_API_URL=http://127.0.0.1:3001
+export PUBLIC_APP_URL=http://127.0.0.1:3000
+export COOKIE_SECURE=false
+export CONFIG_DIR="$PWD/config"
 
-## Run
-
-```sh
-bun run dev        # backend + web together (Ctrl-C stops both)
-bun run dev:api    # backend only → http://127.0.0.1:3001
-bun run dev:web    # web only → http://127.0.0.1:3000
+bun run db:migrate
+bun run dev
 ```
 
-Production-shaped run: `bun run build` then `bun run start:api`
-(`node apps/backend/dist/main.js`).
+Open **http://127.0.0.1:3000/login** and sign in with the email and password you
+supplied. Boot seeds one owner only when the credential table is empty; changing
+these exports does not reset an existing owner's password. Keep this database
+and credentials local. Use a fresh database path for a fresh evaluation.
 
-Health check: `curl http://127.0.0.1:3001/health` → `{"status":"ok"}`.
-Boot seeds the owner account, so it needs the database to be reachable;
-`GET /health` itself still touches no database.
+Use free ports, or change `PORT`, `WEB_PORT`, `BOS_API_URL`, and `PUBLIC_APP_URL`
+together. Do not build into a web directory already serving a running dev app.
+Health: `curl http://127.0.0.1:3001/health` returns `{"status":"ok"}`.
 
-## Check
+### Add a synthetic email
 
-```sh
-bun run check      # architecture check + Biome + typecheck + vitest (fast, no Docker)
+In another Bash terminal, export the **same local ingress key** as the API
+(`BOS_INGRESS_KEY`; do not share or commit it). Then:
+
+```bash
+curl --fail-with-body http://127.0.0.1:3001/inbound/emails \
+  -H "Authorization: Bearer $BOS_INGRESS_KEY" \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "mailboxId": "mbx_harbour_pine",
+    "sourceMessageId": "preview-quote-1",
+    "messageId": "<preview-quote-1@example.test>",
+    "from": {"address": "customer@example.test", "name": "Demo Customer"},
+    "to": ["hello@harbourandpine.example"],
+    "subject": "Oven cleaning quote",
+    "text": "Hi, how much for an oven clean?",
+    "receivedAt": "2026-01-01T10:00:00.000Z"
+  }'
 ```
 
-Components, also runnable individually: `bun run arch`, `bun run lint`,
-`bun run typecheck`, `bun run test`, `bun run format`.
+A new receipt returns 201 with ids and processing status; replaying this same
+mailbox/source id returns 200 with `duplicate: true`. A processing failure still
+commits the receipt. The mailbox id must match `config/mailboxes.json`. Threads
+join through `inReplyTo`/`references`, never subject alone.
 
-The architecture check fails the build if anything under
-`apps/backend/src/core/` imports adapters, infrastructure, `apps/web`,
-NestJS, Drizzle, zod, `fs`, or any other non-core module.
+### PostgreSQL option
 
-## Ports
+Instead of SQLite, use a disposable local PostgreSQL 17 database. The included
+Compose file uses **development-only** `bos`/`bos` credentials:
 
-| Service | Default | Notes |
-| --- | --- | --- |
-| Backend API | 3001 | `PORT` |
-| Web | 3000 | `WEB_PORT` |
-| PostgreSQL | 5432 | via `docker compose`, user `bos`/`bos` (dev only) |
+```bash
+docker compose up -d postgres
+export DB_DIALECT=postgres
+export DATABASE_URL=postgres://bos:bos@127.0.0.1:5432/bos
+bun run db:migrate
+bun run dev
+```
 
-## Environment variables
+Keep the other quickstart exports. An existing PostgreSQL instance works too:
+supply its URL instead of running Docker. Never use production data or credentials.
 
-See `.env.example` for the full list with safe defaults. Highlights:
+## Development and checks
 
-| Name | Used by | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | backend | Postgres in dev and prod |
-| `DB_DIALECT` | backend | `postgres` (default) or `sqlite` (tests/dev only) |
-| `CONFIG_DIR` | backend | default `<repo>/config` |
-| `BOS_OWNER_EMAIL` / `BOS_OWNER_PASSWORD` | backend | seed owner, created only when no operator credentials exist |
-| `BOS_INGRESS_KEY` | backend | bearer token for `POST /inbound/emails` |
-| `AI_ADAPTER` | backend | `fake` (default) or `vercel`; anything else fails boot |
-| `AI_MODEL` | backend | Gateway model id, required when `AI_ADAPTER=vercel` |
-| `AI_GATEWAY_API_KEY` | backend | Gateway key, or an OpenAI `sk-` key, when `AI_ADAPTER=vercel` |
-| `OPENAI_API_KEY` | backend | optional OpenAI key; used instead of a gateway key |
-| `PUBLIC_APP_URL` | backend | quote links |
-| `COOKIE_SECURE` | backend | `true` outside local HTTP |
-| `BOS_API_URL` | web | server-only base URL of the BOS API |
-| `WEB_PORT` | web | dev server port |
+```bash
+bun run check          # architecture + lint + typecheck + deterministic tests
+bun run build          # backend + web (use a separate copy if web is running)
+bun run test:pg        # optional: starts local Compose PostgreSQL, concurrency test
+# Existing disposable DB instead (role must be able to CREATE DATABASE):
+TEST_DATABASE_URL='postgres://user@127.0.0.1:5432/disposable_db' bun run test:pg:service
+```
 
-## Configuration
+Tests force `AI_ADAPTER=fake` regardless of a local live-AI `.env`. The PostgreSQL
+spec skips without `TEST_DATABASE_URL`; unit/HTTP acceptance tests use fakes and
+SQLite. CI installs from the frozen lockfile, runs checks/builds, scans Git history
+for secrets, and exercises concurrency against a disposable PostgreSQL service.
 
-The tenant's identity and behavior come from JSON files under `config/`
-(`organization.json`, `mailboxes.json`, `knowledge-base.json`,
-`price-list.json`). All files are validated at boot with zod; a missing or
-invalid file, a currency mismatch, a non-`none` tax mode without
-`taxRateBps`, or zero price rules **fails boot**. There is no empty
-fallback. Organization identity never comes from a request body or header.
+Individual commands: `bun run arch`, `bun run lint`, `bun run typecheck`,
+`bun run test`, `bun run format`. `bun run dev:api` and `bun run dev:web` start
+services separately; built API: `bun run start:api`. A passing build does not mean
+production readiness.
+
+## Repository map and configuration
+
+```text
+apps/backend   NestJS API, framework-free application core, persistence adapters
+apps/web       Next.js operator UI and customer quote pages
+config/        Fictional tenant, mailboxes, knowledge base, price list
+scripts/       Architecture checks, dev runner, optional demo media tools
+docs/          Architecture, plans, preview boundaries, demo narrative
+```
+
+The four tenant JSON files are validated at boot and fail closed on missing or
+invalid configuration. Organization identity comes from configuration, not
+request headers. `.env.example` documents environment variables. `AI_ADAPTER=fake`
+is the default; optional `vercel` requires a model and provider credentials and
+sends customer content to that provider. Do not enable it with private data for
+this preview. Review the adapters and provider terms before any live experiment.
+
+[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Architecture](docs/ARCHITECTURE.md)
+
+**Proprietary public preview:** the [preview license](LICENSE) permits inspection
+and local, non-production evaluation with synthetic data. It does not grant
+production, commercial reuse, or redistribution rights. This is not open-source
+software; public GitHub visibility does not change that. Third-party dependencies
+retain their own licenses.

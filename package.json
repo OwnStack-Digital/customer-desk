@@ -1,6 +1,7 @@
 {
   "name": "bos",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "workspaces": ["apps/*"],
   "scripts": {
     "dev": "bun scripts/dev.ts",
@@ -12,6 +13,7 @@
     "start:api": "cd apps/backend && bun run start",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/backend/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:pg:service": "vitest run apps/backend/src/adapters/outbound/persistence/testing/send.concurrency.pg.spec.ts",
     "test:pg": "docker compose up -d postgres && TEST_DATABASE_URL=postgres://bos:bos@127.0.0.1:5432/bos vitest run apps/backend/src/adapters/outbound/persistence/testing/send.concurrency.pg.spec.ts",
     "lint": "biome check apps scripts",
     "format": "biome check --write apps scripts",
@@ -19,11 +21,17 @@
     "check": "bun run arch && bun run lint && bun run typecheck && bun run test",
     "db:migrate": "cd apps/backend && bun run db:migrate"
   },
+  "overrides": {
+    "esbuild": "0.28.2",
+    "postcss": "8.5.28",
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.3.7",
     "@types/node": "^24.10.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^4.1.11"
   }
 }

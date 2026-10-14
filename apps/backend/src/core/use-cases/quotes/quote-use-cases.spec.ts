@@ -160,7 +160,7 @@ describe("quote lane processing (task 6.3)", () => {
     expect(quote?.totalMinor).toBe(9900); // 9000 + 10% tax
   });
 
-  it("unknown work is needs_human with the interpretation and no draft", async () => {
+  it("unknown work needs human review with only a proposed clarification draft", async () => {
     const h = harness();
     h.classifier.script(quoteClassification([{ label: "gutter clearing" }]));
     const received = await h.receive.run(email());
@@ -169,18 +169,42 @@ describe("quote lane processing (task 6.3)", () => {
     expect(revision?.summary).toBe(
       'Quote request cannot be priced: No price rule matches "gutter clearing".',
     );
-    expect(h.drafts.rows).toHaveLength(0);
+    expect(h.drafts.rows).toHaveLength(1);
+    expect(h.drafts.rows[0]).toMatchObject({
+      status: "proposed",
+      quoteVersionId: null,
+      bodyText:
+        'Thanks for asking for a quote. We need a little more information before we can price it.\n- Could you clarify this: No price rule matches "gutter clearing".',
+    });
+    expect(h.drafts.rows[0]?.bodyText).not.toContain(QUOTE_LINK_PLACEHOLDER);
     expect(h.quotes.rows).toHaveLength(0);
+    expect(h.outbox.rows).toHaveLength(0);
+    expect(h.messages.rows.every((row) => row.direction === "inbound")).toBe(
+      true,
+    );
   });
 
-  it("a per_unit line without a quantity is needs_human with no draft", async () => {
+  it("a per_unit line without quantity proposes a question, not a priced quote or send", async () => {
     const h = harness();
     h.classifier.script(quoteClassification([{ label: "regular clean" }]));
     const received = await h.receive.run(email());
     expect(received.processing).toBe("needs_human");
-    expect(h.revisions.rows[0]?.summary).toContain("needs a quantity");
-    expect(h.drafts.rows).toHaveLength(0);
+    expect(h.revisions.rows[0]?.summary).toBe(
+      'Quote request cannot be priced: "Regular clean" needs a quantity of bedroom(s).',
+    );
+    expect(h.drafts.rows).toHaveLength(1);
+    expect(h.drafts.rows[0]).toMatchObject({
+      status: "proposed",
+      quoteVersionId: null,
+      bodyText:
+        "Thanks for asking for a quote. We need a little more information before we can price it.\n- How many bedrooms should we allow for Regular clean?",
+    });
+    expect(h.drafts.rows[0]?.bodyText).not.toContain(QUOTE_LINK_PLACEHOLDER);
     expect(h.quotes.rows).toHaveLength(0);
+    expect(h.outbox.rows).toHaveLength(0);
+    expect(h.messages.rows.every((row) => row.direction === "inbound")).toBe(
+      true,
+    );
   });
 
   it("a paused conversation keeps its quote request human (no machine draft)", async () => {

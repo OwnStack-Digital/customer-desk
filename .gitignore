@@ -1,9 +1,43 @@
 node_modules/
 dist/
 .next/
-.env
-*.tsbuildinfo
-*.db
 coverage/
+*.tsbuildinfo
+
+# Local configuration; only deliberately sanitized templates are public.
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
+!*.env.example
+
+# Local databases and journal / WAL sidecars.
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Runtime logs and generated recordings (not docs/assets screenshots).
+*.log
+logs/
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+artifacts/demo/
+playwright-report/
+test-results/
+
+# Agent state and machine-local metadata.
 .orchestration/
 .gstack/
+.pi/
+.agents/
+.DS_Store
+
+# Pre-existing private local helper; do not publish.
+/apps/backend/src/scripts.sh

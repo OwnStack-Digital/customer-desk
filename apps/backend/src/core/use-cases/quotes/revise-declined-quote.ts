@@ -126,11 +126,7 @@ export class ReviseDeclinedQuote {
     };
     await this.deps.unitOfWork.run(async (repos) => {
       if (current.status === "prepared") {
-        await repos.quotes.supersedePrepared(
-          organizationId,
-          current.id,
-          now,
-        );
+        await repos.quotes.supersedePrepared(organizationId, current.id, now);
         if (latestDraft?.status === "proposed") {
           await repos.drafts.supersede(organizationId, latestDraft.id);
         }

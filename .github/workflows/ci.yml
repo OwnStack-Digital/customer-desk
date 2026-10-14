@@ -1,0 +1,62 @@
+name: Preview checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: bos_preview
+          POSTGRES_USER: postgres
+          # Disposable CI service only, loopback-bound; no production secrets.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - "127.0.0.1:5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bos_preview"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      AI_ADAPTER: fake
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - name: Scan full Git history (pinned Gitleaks CLI, no action license required)
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --log-opts="--all" .
+      - run: bun install --frozen-lockfile
+      - run: bun audit
+      - run: bun run check
+      - name: Test-order isolation regressions
+        run: |
+          bun run test --sequence.shuffle --sequence.seed=1
+          bun run test --sequence.shuffle --sequence.seed=2
+      - run: bun run build
+      - name: PostgreSQL concurrent-send regression
+        run: bun run test:pg:service
+        env:
+          TEST_DATABASE_URL: postgres://postgres@127.0.0.1:5432/bos_preview

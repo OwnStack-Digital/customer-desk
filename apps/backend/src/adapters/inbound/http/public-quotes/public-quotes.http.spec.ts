@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { INestApplication } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -64,12 +64,21 @@ function fixture(overrides: Record<string, unknown> = {}) {
 async function sentQuote(
   sourceMessageId: string,
   overrides: Record<string, unknown> = {},
-): Promise<{ conversationId: string; revisionId: string; token: string }> {
+): Promise<{
+  conversationId: string;
+  revisionId: string;
+  token: string;
+  quoteVersionId: string;
+}> {
   const ingress = await request(app.getHttpServer())
     .post("/inbound/emails")
     .set("Authorization", `Bearer ${INGRESS_KEY}`)
     .send(fixture({ sourceMessageId, ...overrides }));
   expect(ingress.status).toBe(201);
+  expect(
+    ingress.body.processing,
+    `Receipt processing for ${sourceMessageId}`,
+  ).toBe("ready");
   const { conversationId } = ingress.body as {
     conversationId: string;
   };
@@ -82,6 +91,11 @@ async function sentQuote(
   const threadBefore = await request(app.getHttpServer())
     .get(`/threads/${conversationId}`)
     .set("Cookie", cookie);
+  expect(threadBefore.status).toBe(200);
+  expect(
+    threadBefore.body.draft,
+    `Proposed draft for ${sourceMessageId}`,
+  ).toMatchObject({ status: "proposed" });
   const revisionId = threadBefore.body.draft?.revisionId as string;
 
   const approve = await request(app.getHttpServer())
@@ -105,8 +119,11 @@ async function sentQuote(
     thread.body.messages as Array<{ direction: string; text?: string }>
   ).find((message) => message.direction === "outbound");
   const token = outbound?.text?.match(/\/quote\/(\S+)/)?.[1] as string;
+  expect(thread.status).toBe(200);
   expect(token).toBeDefined();
-  return { conversationId, revisionId, token };
+  const quoteVersionId = thread.body.quote?.quoteVersionId as string;
+  expect(quoteVersionId).toEqual(expect.any(String));
+  return { conversationId, revisionId, token, quoteVersionId };
 }
 
 beforeAll(async () => {
@@ -127,7 +144,8 @@ beforeAll(async () => {
     imports: [AppModule],
   }).compile();
   app = moduleRef.createNestApplication();
-  await app.init();
+  // Own the fixture server lifetime; do not auto-open/close it per request.
+  await app.listen(0, "127.0.0.1");
 });
 
 afterAll(async () => {
@@ -141,6 +159,7 @@ describe("public quote routes over HTTP (task 6.5)", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     let token = "";
+    let logged = "";
     try {
       const { token: sent } = await sentQuote("src-pq-1");
       token = sent;
@@ -170,14 +189,16 @@ describe("public quote routes over HTTP (task 6.5)", () => {
         .where(eq(sqliteQuoteVersions.tokenHash, tokenHashOf(token)));
       expect(rows[0]).toMatchObject({ status: "sent", decidedAt: null });
     } finally {
-      const logged = stdout.mock.calls.map((call) => String(call[0])).join("");
+      logged = stdout.mock.calls.map((call) => String(call[0])).join("");
       stdout.mockRestore();
-      expect(logged).not.toContain(token);
     }
+    // Only assert after a successful flow; cleanup must not mask its error.
+    expect(logged).not.toContain(token);
   });
 
   it("records an explicit accept and its customer audit, then replays idempotently", async () => {
-    const { token, conversationId } = await sentQuote("src-pq-2");
+    const { token, conversationId, quoteVersionId } =
+      await sentQuote("src-pq-2");
     const accept = await request(app.getHttpServer())
       .post(`/public/quotes/${token}/decision`)
       .send({ decision: "accept" });
@@ -200,10 +221,14 @@ describe("public quote routes over HTTP (task 6.5)", () => {
     });
 
     const db = client.open() as SqliteDb;
+    const acceptedAudit = and(
+      eq(sqliteAuditEvents.entityId, quoteVersionId),
+      eq(sqliteAuditEvents.action, "quote.accepted"),
+    );
     const audits = await db
       .select()
       .from(sqliteAuditEvents)
-      .where(eq(sqliteAuditEvents.action, "quote.accepted"));
+      .where(acceptedAudit);
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({ actor: "customer" });
 
@@ -214,10 +239,7 @@ describe("public quote routes over HTTP (task 6.5)", () => {
     expect(replay.status).toBe(200);
     expect(replay.body.status).toBe("accepted");
     expect(
-      await db
-        .select()
-        .from(sqliteAuditEvents)
-        .where(eq(sqliteAuditEvents.action, "quote.accepted")),
+      await db.select().from(sqliteAuditEvents).where(acceptedAudit),
     ).toHaveLength(1);
 
     // Conflicting decision: 409 conflict.
@@ -229,7 +251,7 @@ describe("public quote routes over HTTP (task 6.5)", () => {
   });
 
   it("records an explicit decline", async () => {
-    const { token } = await sentQuote("src-pq-3");
+    const { token, quoteVersionId } = await sentQuote("src-pq-3");
     const decline = await request(app.getHttpServer())
       .post(`/public/quotes/${token}/decision`)
       .send({ decision: "decline" });
@@ -240,7 +262,12 @@ describe("public quote routes over HTTP (task 6.5)", () => {
       await db
         .select()
         .from(sqliteAuditEvents)
-        .where(eq(sqliteAuditEvents.action, "quote.declined")),
+        .where(
+          and(
+            eq(sqliteAuditEvents.entityId, quoteVersionId),
+            eq(sqliteAuditEvents.action, "quote.declined"),
+          ),
+        ),
     ).toHaveLength(1);
   });
 
